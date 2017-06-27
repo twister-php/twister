@@ -1,16 +1,22 @@
 {
 	"name": "twister/twister",
 	"description": "Twister - PHP micro-framework",
-	"keywords": ["microframework", "rest", "router", "framework", "PHP"],
-	"type": "project",
-	"homepage": "https://github.com/therselman/twister",
+	"keywords": ["framework", "microframework", "rest", "router", "PHP"],
+	"type": "library",
+	"homepage": "https://github.com/twister-php/twister/",
 	"license": "MIT",
+	"authors": [
+		{
+			"name": "Trevor Herselman",
+			"email": "therselman@gmail.com"
+		}
+	],
 	"require": {
 		"php": ">=5.4"
 	},
 	"autoload": {
-		"psr-4": {
-			"Twister\\": "src/twister/"
+		 "psr-4": {
+			"Twister\\": "src/"
 		}
-	}
+	},
 }
