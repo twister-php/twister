@@ -59,7 +59,7 @@ More properties can easily be added:
 $c->session = new Session();
 $c->isSecure = $uri->scheme === 'https';
 $c->getDummy = function($c) { return $c->dummy; };
-$c->setDummy = function($c, $dummy) { $c->dummy = $dummy; return $dummy; };
+$c->setDummy = function($c, $dummy) { $c->dummy = $dummy; return $c; };
 
 $dummy = $c->getDummy();
 $c->setDummy($dummy);
