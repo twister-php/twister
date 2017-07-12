@@ -1,5 +1,7 @@
 <?php
 
+namespace Twister;
+
 /**
  *	About 80% of this class was re-written by Trevor Herselman
  *	But originally based on the zend-diactoros Uri class
