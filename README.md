@@ -28,12 +28,20 @@ Along with the Container, comes a very flexible and fast router (inside the Requ
 Although Twister is a fully functional and useable framework (based on my personal framework),
     it's more a proof-of-concept for me to demonstrate my capabilities and design decisions.
 
+My main design philosophy is: Configuration over Code/Convention;
+    I would rather write a large array with pre-configured properties/routes/Closures etc.,
+        and have the benefit of a pre-cached array (PHP7 includes a built in cache, or XCode/APC),
+        without the overhead of hundreds of (unecessary) `->add(...)` function calls.
+    I just see very little benefit to writing a ton of `->add(route)` commands when the entire route layout of your website can be loaded once.
+    One argument for writing `->add(...)` calls in the Container and Router is input validation,
+        but I would argue that you can still do it by parsing a single pre-configured array. One large pre-configured array with default Routes and Container objects could serve as the 'base' for default options. Additional Routes/DI/IoC objects could be added/modified at run-time. Also, I ONLY use PHP array based configuration files, because they are cached natively by PHP; any other configuration files (.ini/YAML/JSON) have to be interpreted/parsed or a custom cache has to be invented.
+
 ## Benchmarks:
 
 All tests were done with a skeleton `hello world` application on the same PC.
 Laravel and Symfony were NOT configured to establish a database connection, while Twister WAS!
 With a database connection, Symfony dropped to 9-12 requests per second, and Laravel 12-16 rps,
-  Twister was running about 50x-100x faster than Symfony and Laravel
+  Twister is running anywhere from 50x-100x faster than Symfony and Laravel
   
 ```
 ab -t 30 http://laravel/
