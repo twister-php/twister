@@ -1,8 +1,10 @@
 # twister
-Twister is a fast and light-weight micro-framework.
+> Twister is a fast and light-weight micro-framework component library
 
-Actually, a more precise definition of this code release would be;
-  > Twister is a set of fast and light-weight components around which a framework can be written
+Another definition of this code release would be;
+> Twister is a set of fast and light-weight components around which a framework can be written
+
+I have written a skeleton framework, also called Twister based on this code!
 
 At the heart of the framework, sits a very flexible, simple and elegant Inversion-of-Control (IoC) Container.
 In fact, there are NO global variables, NO define's, NO pipeline, NO Kernel and NO App; just the Container.
@@ -19,9 +21,9 @@ Along with the Container, comes a very flexible and fast router (inside the Requ
         So everytime you specify `{id}`, `{date}`, `{uuid}` etc. in the routes, the pre-configured patterns are used,
           or you can specify custom patterns with `{id:[0-9]+}` or `{id:uuid}` where `uuid`=>`[A-F0-9-]+` etc.
     Two design choices make the router fast:
-        * Everything is configured/loaded from a `config` array (which is usually cached by APC/Xcode/PHP7)
-        * The router splits the request uri by '/', doing an `isset` array lookup for the first path segment
-        * The router only takes further action after the first segment (eg. /admin/, /login etc.) is resolved
+* Everything is configured/loaded from a `config` array (which is usually cached by APC/Xcode/PHP7)
+* The router splits the request uri by '/', doing an `isset` array lookup for the first path segment
+* The router only takes further action after the first segment (eg. /admin/, /login etc.) is resolved
 
 Although Twister is a fully functional and useable framework (based on my personal framework),
     it's more a proof-of-concept for me to demonstrate my capabilities and design decisions.
