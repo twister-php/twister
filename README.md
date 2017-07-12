@@ -1,8 +1,8 @@
 # twister
 Twister is a fast and light-weight micro-framework.
 
-Actually, a more precise definition of this code would be;
-  `Twister is a set of fast and light-weight components around which a framework can be written`
+Actually, a more precise definition of this code release would be;
+  Twister is a set of fast and light-weight components around which a framework can be written
 
 At the heart of the framework, sits a very flexible, simple and elegant Inversion-of-Control (IoC) Container.
 In fact, there are NO global variables, NO define's, NO pipeline, NO Kernel and NO App; just the Container.
@@ -17,7 +17,7 @@ Along with the Container, comes a very flexible and fast router (inside the Requ
     It includes the ability to filter by method (GET/POST), and optional parameters like `/user/{id}[/{name}]`
     Another somewhat unique capability is the ability to pre-define the patterns associated with named parameters eg. `id`->`\d+`
         So everytime you specify {id}, {date} etc. in any route, the same patterns are re-used,
-          or you can specify custom patterns with {id:[0-9]+} or {id:uuid} where 'uuid'=>'[A-F0-9-]+' etc.
+          or you can specify custom patterns with `{id:[0-9]+}` or `{id:uuid}` where `uuid`=>`[A-F0-9-]+` etc.
     Two design choices make the router fast:
         1) Everything is configured/loaded from a `config` array (which is usually cached by APC/Xcode/PHP7)
         2) The router splits the request uri by '/', doing an `isset` array lookup for the first path segment
@@ -30,8 +30,8 @@ Benchmarks:
 
 All tests were done with a skeleton `hello world` application on the same PC.
 Laravel and Symfony were NOT configured to establish a database connection, while Twister WAS!
-With a database connection, Symfony dropped to 9~12 requests per second, and Laravel 12~16 rps,
-  Twister was running about 50x~100x faster than Symfony and Laravel
+With a database connection, Symfony dropped to 9-12 requests per second, and Laravel 12-16 rps,
+  Twister was running about 50x-100x faster than Symfony and Laravel
 
 ab -t 30 http://laravel/
 
