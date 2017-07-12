@@ -2,7 +2,14 @@
 
 namespace Twister;
 
-class Db extends MySQLi
+/**
+ *	Just a MySQLi wrapper class
+ *	Adds 2 helper functions I use a lot, lookup() and get_array()
+ *	`lookup()` returns a single value/field from the database, or a single row as an associated array by field names
+ *	`get_array()` returns multiple rows in an associated array
+ *	The other functions and functionality are less useful!
+ */
+class Db extends mysqli
 {
 	static function build($module, array $commands = array())
 	{
@@ -284,3 +291,4 @@ class Db extends MySQLi
 	}
 
 }
+

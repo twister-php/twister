@@ -2,7 +2,7 @@
 
 namespace Twister;
 
-class Validation
+class Validation	//	AKA Filter
 {
-
+	//	TODO
 }

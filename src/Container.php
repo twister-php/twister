@@ -2,42 +2,75 @@
 
 namespace Twister;
 
-class Container implements ContainerInterface
+/**
+ *	Multi-purpose IoC/DI Container
+ *	==============================
+ *	This is a powerful, flexible, yet light-weight, simple and easy-to-use multi-purpose Container;
+ *		it includes the ability to be a IoC/DI Container, a Service Locator,
+ *		a dynamic function library, factory object builder and general purpose data/object/array storage.
+ *	This Container essentially takes the place of an application `Kernel` or `App` class,
+ *		all global variables/object instances, app configurations, environment variables,
+ *		`microservices`, object (factory) builders etc. are all contained within it.
+ *	Many of the services, capabilities and functionality are provided by the various anonymous functions contained within.
+ *		Along with the closures, it also contains arrays and instanciated objects.
+ *	All these capabilities are accessed in the form of a dynamic property (using __get and __set);
+ *		eg. '$c->db' gives you the current database class; you can also use '$c->db()' if you prefer.
+ */
+class Container
 {
-	protected $_container	=	[];
+	protected $_container	=	null;
 
-	function __set($name, $value)
+	function __construct(array $c = [])
 	{
-		if (isset($this->_container[$name]))
-		{
-			$trace = debug_backtrace();
-			trigger_error(__CLASS__ . " container property `{$name}` has already been set and cannot be changed in {$trace[0]['file']} on line {$trace[0]['line']}. Please unset() and re-set the value!", E_USER_ERROR);
-		}
-		else
-			$this->_container[$name] = $value;
+		$this->_container = $c;
 	}
 
-	function &__get($name)
+	function __set($key, $value)
 	{
-		if (isset($this->_container[$name]))
-			return $this->_container[$name];
+		/**
+		 *	do we really need to stop the variables from being set???
+		 *	currently we are protecting anything that is not a callable function.
+		 *		the reason why I don't protect a callable, is because many of the callables
+		 *		will set the same value to an instantaited object. It just saves us using `unset()` first
+		 *	The alternative is to do something like Symfony or other frameworks,
+		 *		where we call a `protect()` or `singleton()` methods etc.
+		 *	I just hate calling yet another method for every occasion or fringe case!
+		 */
+		if (isset($this->_container[$key]) && ! is_callable($this->_container[$key]))
+		{
+			$trace = debug_backtrace();
+			trigger_error(__CLASS__ . " container property `{$key}` has already been set and cannot be changed in {$trace[0]['file']} on line {$trace[0]['line']}. Please unset() and re-set the value!", E_USER_ERROR);
+		}
+		else
+			return $this->_container[$key] = $value;
+	}
 
-		//	Examples of official error messages
-		//	Notice: Undefined index: muscle in C:\...\app.php on line 34
-		//	Undefined property: app::$conf in <b>C:\...\app.php</b> on line <b>111</b><br />
+	function __get($key)
+	{
+		if (isset($this->_container[$key]))
+		{
+			$value = $this->_container[$key];
+			return is_callable($value) ? $value($this) : $value;
+		}
+
+		/**
+		 *	Examples of official PHP error messages when a property cannot be found
+		 *		Notice: Undefined index: config in C:\...\app.php on line 34
+		 *		Undefined property: Container::$config in <b>C:\...\app.php</b> on line <b>111</b><br />
+		 */
 		$trace = debug_backtrace();
-		trigger_error('Undefined container property: ' . __CLASS__ . "->{$name} in <b>{$trace[0]['file']}</b> on line <b>{$trace[0]['line']}</b>; thrown", E_USER_ERROR);
+		trigger_error('Undefined container property: ' . __CLASS__ . "->{$key} in <b>{$trace[0]['file']}</b> on line <b>{$trace[0]['line']}</b>; thrown", E_USER_ERROR);
 		return null;
 	}
 
-	function __isset($name)
+	function __isset($key)
 	{
-		return isset($this->_container[$name]);
+		return isset($this->_container[$key]);
 	}
 
-	function __unset($name)
+	function __unset($key)
 	{
-		unset($this->_container[$name]);
+		unset($this->_container[$key]);
 	}
 
 	function &__call($method, $args)
@@ -71,64 +104,28 @@ class Container implements ContainerInterface
 			}
 			throw new \InvalidArgumentException(__CLASS__ . "->{$method}() doesn't exist");
 		}
-
-
-		//	old method
-		if (isset(self::$_[$method]) && is_callable(self::$_[$method]))
-			return call_user_func_array(self::$_[$method], $args);
-		if ( ! empty($args))
-			self::$_[$method] = $args[0];
-		return self::$_[$method];
-/*			//	old method
-		if ( ! empty($args))
-			self::$_[$method] = $args[0];
-		if (isset(self::$_[$method]))
-			return self::$_[$method];
-		else
-			throw new InvalidArgumentException("_::{$method}() doesn't exist");
-		/*
-		Taken from: https://stackoverflow.com/questions/1279382/magic-get-getter-for-static-properties-in-php
-		static public function __callStatic($method, $args)
-		{
-			if (preg_match('/^([gs]et)([A-Z])(.*)$/', $method, $match))
-			{
-				$reflector = new \ReflectionClass(__CLASS__);
-				$property = strtolower($match[2]). $match[3];
-				if ($reflector->hasProperty($property))
-				{
-					$property = $reflector->getProperty($property);
-					switch($match[1])
-					{
-						case 'get': return self::${$property->name};
-						case 'set': return self::${$property->name} = $args[0];
-					}     
-				}
-				else throw new InvalidArgumentException("Property {$property} doesn't exist");
-			}
-		}
-		*/
 	}
 
 
-	function set($key, $value)	//	alias for __set()
+	function set($key, $value)				//	alias for __set()
 	{
-		return $this->_container[$key] =& $value;
+		return $this->__set($key, $value);
 	}
-	function &get($key)	//	alias for __get()
+	function &get($key, $default = null)	//	similar to __get()
 	{
-		return $this->_container[$key];
+		return $this->_container[$key] ?? $default;
 	}
-	function has($key)	//	alias for __isset()
+	function has($key)						//	alias for __isset()
 	{
 		return isset($this->_container[$key]);
 	}
-	function &merge($key, array $arr)	//	we need this function because we cannot (re)`set` the arrays to new values without unsetting the old values first! ie. __set() will fail because it already exists!
+	function &merge($key, array $arr)		//	we need this function because we cannot (re)`set` the arrays to new values without unsetting the old values first! ie. __set() will fail because it already exists!
 	{
 		//	TODO: Add is_array() checks to the container, and add variable number of array inputs!
 		$this->_container[$key] = array_merge($this->_container[$key], $arr);
 		return $this->_container[$key];
 	}
-	function remove($key)	//	alias for __unset()
+	function remove($key)					//	alias for __unset()
 	{
 		unset($this->_container[$key]);
 	}

@@ -2,13 +2,14 @@
 
 namespace Twister;
 
+/**
+ * Extending from this base Controller class for Controllers is optional!
+ * The alternative is to make the `action handlers` static methods in the controller
+ */
 abstract class Controller implements ContainerInterface
 {
 	use ContainerAwareTrait;
 
-	/**
-	 *	ContainerAwareTrait
-	 */
 	function __set($name, $value) { return $this->container->__set($name, $value); }
 	function &__get($name) { return $this->container->__get($name); }
 	function __isset($name) { return $this->container->__isset($name); }
