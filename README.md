@@ -15,9 +15,9 @@ The Container controls the entire flow of code (except routing), with a custom `
 Along with the Container, comes a very flexible and fast router (inside the Request class).
     I consider this router to be THE fastest router I've tested, with the same functionality.
     It includes the ability to filter by method (GET/POST), and optional parameters like `/user/{id}[/{name}]`
-    Another somewhat unique capability is the ability to pre-define the patterns associated with named parameters eg. `id`->`\d+`
-        So everytime you specify `{id}`, `{date}` etc. in any route, the same patterns are re-used,
-          or you can specify custom patterns with `{id:[0-9]+}` or `{id:uuid}` where `uuid`=>`[A-F0-9-]+` etc.
+    Another somewhat unique capability is the ability to pre-define the patterns associated with named parameters eg. `id`=>`\d+`
+        So everytime you specify `{id}`, `{date}`, `{uuid}` etc. in the routes, the pre-configured patterns are used,
+          or you can specify custom patterns with `{id:[0-9]+}` or `{id:uuid}` where `uuid`=>`[A-F0-9-]+` etc.
     Two design choices make the router fast:
         1) Everything is configured/loaded from a `config` array (which is usually cached by APC/Xcode/PHP7)
         2) The router splits the request uri by '/', doing an `isset` array lookup for the first path segment
