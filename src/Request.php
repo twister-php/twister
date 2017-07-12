@@ -310,7 +310,7 @@ class Request
 			else
 			{
 				if ( ! $param->isOptional())
-					throw new \Exception('Unable to find NON-optional parameter `' . $param->name . '` for route controller/handler: ' . var_export($this->route, true));
+					throw new \Exception('Unable to find NON-optional parameter `' . $param->name . ($param->hasType() ? '` of type `' . $param->getType() : null) . '` for route controller/handler: ' . var_export($this->route, true));
 				$args[] = $param->getDefaultValue();
 			}
 		}
