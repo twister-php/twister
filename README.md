@@ -4,7 +4,7 @@
 Another definition of this code release would be;
 > Twister is a set of fast and light-weight components around which a framework can be written
 
-I have written a [skeleton framework]https://github.com/twister-php/skeleton, also called Twister based on this code!
+I have written a [skeleton framework](https://github.com/twister-php/skeleton), also called Twister based on this code!
 
 At the heart of the framework, sits a very flexible, simple and elegant Inversion-of-Control (IoC) Container.
 In fact, there are NO global variables, NO define's, NO pipeline, NO Kernel and NO App; just the Container.
