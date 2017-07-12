@@ -2,7 +2,7 @@
 Twister is a fast and light-weight micro-framework.
 
 Actually, a more precise definition of this code release would be;
-  Twister is a set of fast and light-weight components around which a framework can be written
+  > Twister is a set of fast and light-weight components around which a framework can be written
 
 At the heart of the framework, sits a very flexible, simple and elegant Inversion-of-Control (IoC) Container.
 In fact, there are NO global variables, NO define's, NO pipeline, NO Kernel and NO App; just the Container.
@@ -19,20 +19,21 @@ Along with the Container, comes a very flexible and fast router (inside the Requ
         So everytime you specify `{id}`, `{date}`, `{uuid}` etc. in the routes, the pre-configured patterns are used,
           or you can specify custom patterns with `{id:[0-9]+}` or `{id:uuid}` where `uuid`=>`[A-F0-9-]+` etc.
     Two design choices make the router fast:
-        1) Everything is configured/loaded from a `config` array (which is usually cached by APC/Xcode/PHP7)
-        2) The router splits the request uri by '/', doing an `isset` array lookup for the first path segment
-        3) The router only takes further action after the first segment (eg. /admin/, /login etc.) is resolved
+        * Everything is configured/loaded from a `config` array (which is usually cached by APC/Xcode/PHP7)
+        * The router splits the request uri by '/', doing an `isset` array lookup for the first path segment
+        * The router only takes further action after the first segment (eg. /admin/, /login etc.) is resolved
 
 Although Twister is a fully functional and useable framework (based on my personal framework),
     it's more a proof-of-concept for me to demonstrate my capabilities and design decisions.
 
-Benchmarks:
+## Benchmarks:
 
 All tests were done with a skeleton `hello world` application on the same PC.
 Laravel and Symfony were NOT configured to establish a database connection, while Twister WAS!
 With a database connection, Symfony dropped to 9-12 requests per second, and Laravel 12-16 rps,
   Twister was running about 50x-100x faster than Symfony and Laravel
-
+  
+```
 ab -t 30 http://laravel/
 
 Complete requests:      198
@@ -65,3 +66,4 @@ memory_get_usage(): 858,848
 memory_get_usage(true): 2,097,152
 memory_get_peak_usage(): 1,049,528
 memory_get_peak_usage(true): 2,097,152
+```
