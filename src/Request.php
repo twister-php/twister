@@ -140,14 +140,14 @@ class Request
 		return $id;
 	}
 
-	public function execute_route()
+	public function execute_route(array $routes)
 	{
 		$path			=	$this->uri->path;
 		$paths			=	explode('/', $path, 4);
 		$route			=	null;
 		$method			=	$this->method;
 	//	$this->route	=	null;	//	general (debug) information about the matching route
-		$this->routes	=	$routes = require __DIR__ . '/../config/routes.php';
+		$this->routes	=	$routes; // $routes = require __DIR__ . '/../config/routes.php';
 	//	$this->params	=	null;
 		$controller		=	$routes['routes'][$paths[1]] ?? $routes[404];
 	//	$matches		=	null;
