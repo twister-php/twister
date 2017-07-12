@@ -9,7 +9,7 @@ namespace Twister;
  *	`get_array()` returns multiple rows in an associated array
  *	The other functions and functionality are less useful!
  */
-class Db extends mysqli
+class Db extends \mysqli
 {
 	static function build($module, array $commands = array())
 	{
