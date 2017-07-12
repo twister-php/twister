@@ -53,7 +53,7 @@ The code above actually calls a function registered like this:
 ```
 
 
-These dynamic 'properties' have been pre-configured in the 'controller' config file, they use \_\_get, \_\_set and \_\_call.
+These dynamic 'properties' have been pre-configured in the 'controller' config file, they use `\_\_get`, `\_\_set` and `\_\_call`.
 More properties can easily be added:
 ```php
 $c->session = new Session();
