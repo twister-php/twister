@@ -17,7 +17,7 @@ The Container controls the entire flow of code (except routing), with a custom `
     which is actually just an anonymous callback function inside the Container, called from the Front Controller (index.php);
     even the name of that function can be changed in the config file.
     ie. There is NO pre-programmed flow of the program or hard-coded Kernel/App.
-      Most things are handled/registered with the IoC Container, objects are pre-configured and `lazy-loaded` on request/use only!
+      Most things are handled/registered with the IoC Container, objects are pre-configured and 'lazy-loaded' on request/use only!
 
 For example:
 
