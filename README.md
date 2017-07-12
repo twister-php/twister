@@ -28,13 +28,15 @@ Along with the Container, comes a very flexible and fast router (inside the Requ
 Although Twister is a fully functional and useable framework (based on my personal framework),
     it's more a proof-of-concept for me to demonstrate my capabilities and design decisions.
 
-My main design philosophy is: Configuration over Code/Convention;
-    I would rather write a large array with pre-configured properties/routes/Closures etc.,
+My main design philosophy is: Configuration over Code/Convention; where 'configuration' isn't something you do once and leave, but it becomes part of the overall/ongoing development process. As you build the Container, you extend/enhance its capabilities/functionality by added more configurable components.
+    I would rather write a large array with hundreds of pre-configured properties/routes/Closures/functions etc.,
         and have the benefit of a pre-cached array (PHP7 includes a built in cache, or XCode/APC),
-        without the overhead of hundreds of (unecessary) `->add(...)` function calls.
-    I just see very little benefit to writing a ton of `->add(route)` commands when the entire route layout of your website can be loaded once.
+        than have the overhead of hundreds of (unecessary) `->add(...)` function calls. ie. A single array in a config file with 300 pre-configured lines of routes, is faster than 300 `->add()` route function calls, due to the function call overhead, which can become significant the larger a project gets.
+    I just see very little benefit to writing hundreds of `->add(route)` commands when the entire route layout of your website can be loaded once.
     One argument for writing `->add(...)` calls in the Container and Router is input validation,
-        but I would argue that you can still do it by parsing a single pre-configured array. One large pre-configured array with default Routes and Container objects could serve as the 'base' for default options. Additional Routes/DI/IoC objects could be added/modified at run-time. Also, I ONLY use PHP array based configuration files, because they are cached natively by PHP; any other configuration files (.ini/YAML/JSON) have to be interpreted/parsed or a custom cache has to be invented.
+        but I would argue that you can still do it by parsing a single pre-configured array. One large pre-configured array with default Routes and Container objects could serve as the 'base' for default options. Additional Routes/DI/IoC objects could be added/modified at run-time. Also, I ONLY use PHP array based configuration files, because they are cached natively by PHP; any other configuration files (.ini/YAML/JSON) have to be interpreted/parsed at runtime or a custom cache has to be invented.
+
+
 
 ## Benchmarks:
 
