@@ -1,4 +1,4 @@
-# twister
+# Twister
 > Twister is a fast and light-weight micro-framework component library
 
 Another definition of this code release would be;
