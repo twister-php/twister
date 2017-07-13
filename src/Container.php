@@ -36,13 +36,9 @@ class Container implements ArrayAccess
 	 */
 	protected $bindings = null;
 
-	/**
-	 * The registered type aliases.
-	 *
-	 * @var array
-	 */
-	protected $aliases = null;
-
+    /**
+     * @param array|null $c an array of pre-configured bindings
+     */
 	function __construct(array $c = [])
 	{
 		if (static::$instance)
@@ -50,12 +46,6 @@ class Container implements ArrayAccess
 		static::$instance = $this;
 
 		$this->bindings = $c;
-		if (isset($c['aliases']))
-		{
-			$this->aliases = $c['aliases'];
-			unset($c['aliases']);
-		}
-
 		$this->bindings[self::class] = $this;
 	}
 
@@ -72,6 +62,7 @@ class Container implements ArrayAccess
 	function &__call($method, $args)
 	{
 		if (isset($this->bindings[$method]))
+		{
 			if (is_callable($this->bindings[$method]))
 			{
 				array_unshift($args, $this);	//	Prepend $this container to the beginning of the function call arguments!
@@ -80,11 +71,12 @@ class Container implements ArrayAccess
 			}
 			else
 				return $this->bindings[$method];
+		}
 		else
 		{
-			if (preg_match('/^([gs]et|has|isset|unset)([A-Z])(.*)$/', $method, $match))
+			if (preg_match('/^([gs]et|has|isset|unset)([A-Z].*)$/', $method, $match))
 			{
-				$property = strtolower($match[2]). $match[3];
+				$property = lcfirst($match[2]);
 				if (isset($this->bindings[$property]))
 				{
 					switch($match[1])
@@ -116,8 +108,11 @@ class Container implements ArrayAccess
 	 */
 	public function call(callable $callable, array $params = null)
 	{
+		return call_user_func_array($callable, $this->_buildArgList(new \ReflectionFunction($callable), $params));
+		/*
 		$reflected = new \ReflectionFunction($callable);
 		return $reflected->invokeArgs($this->_buildArgList($reflected, $params));
+		*/
 	}
 
 	private function _buildArgList(\ReflectionFunctionAbstract $reflected, array &$params = null)
@@ -125,27 +120,34 @@ class Container implements ArrayAccess
 		$args	=	[];
 		foreach ($reflected->getParameters() as $index => $param)
 		{
-			if ($param->hasType() && isset($this->bindings[$param->getType()]))
+			$type = $param->hasType() ? (string) $param->getType() : false;
+			if ($type && isset($this->bindings[$type]))
 			{
-				$value = &$this->bindings[$param->getType()];
+				$value = &$this->bindings[$type];
 				$args[] = is_callable($value) ? $value($this) : $value;
 			}
 			else
 			{
 				$name = $param->name;
-				if (isset($params[$name]))
-				{
+				if (isset($params[$name])) {
 					$args[] = $params[$name];
 				}
-				else if (isset($params[$index]))
-				{
+				else if (isset($params[$index])) {
 					$args[] = $params[$index];
 				}
 				else
 				{
-					if ( ! $param->isOptional())
-						throw new \Exception('Unable to find NON-optional parameter `' . $param->name . ($param->hasType() ? '` of type `' . $param->getType() : null) . '` for route controller/handler: ' . var_export($this->route, true));
-					$args[] = $param->getDefaultValue();
+					if (class_exists($type)) {
+						$args[] = $this->make($type, $params);
+					}
+					else if ( ! $param->isOptional()) {
+						throw new \Exception('Unable to resolve non-optional parameter `' . $param->name .
+							($param->hasType() ? '` of type `' . (string) $param->getType() : null) .
+							'` when building reflected function: ' . (string) $reflected);
+					}
+					else {
+						$args[] = $param->getDefaultValue();
+					}
 				}
 			}
 		}
@@ -153,7 +155,7 @@ class Container implements ArrayAccess
 	}
 
 	/**
-	 * Build an entry of the container by its name.
+	 * Build an object by its name.
 	 *
 	 * This method behaves like get() except resolves the entry again every time.
 	 * For example if the entry is a class then a new instance will be created each time.
@@ -170,49 +172,32 @@ class Container implements ArrayAccess
 	 * @throws NotFoundException No entry found for the given name.
 	 * @return mixed
 	 */
-	public function make(string $name, array $parameters = null)
+	public function make(string $name, array $params = null)
 	{
-		$definition = $this->definitionSource->getDefinition($name);
-		if (! $definition) {
-			// If the entry is already resolved we return it
-			if (array_key_exists($name, $this->resolvedEntries)) {
-				return $this->resolvedEntries[$name];
-			}
+		if (isset($this->bindings[$name]))
+			return $this->bindings[$name];
 
-			throw new NotFoundException("No entry or class found for '$name'");
+		//	cached constructor lists
+		static $constructors = null;
+
+		if (isset($constructors[$name])) {
+			$constructor = $constructors[$name];
+		}
+		else {
+			$constructors[$name] = $constructor = method_exists($name, '__construct') ? new \ReflectionMethod($name, '__construct') : null;
 		}
 
-		return $this->resolveDefinition($definition, $parameters);
+		return $constructor ?
+				(new \ReflectionClass($name))->newInstanceArgs($this->_buildArgList($constructor, $params)) :
+				(new \ReflectionClass($name))->newInstance();
 	}
-
-	/**
-	 * Define an object or a value in the container.
-	 *
-	 * @param string $name Entry name
-	 * @param mixed|DefinitionHelper $value Value, use definition helpers to define objects
-	 */
-	public function set(string $name, $value)
-	{
-		if ($value instanceof DefinitionHelper) {
-			$value = $value->getDefinition($name);
-		} elseif ($value instanceof \Closure) {
-			$value = new FactoryDefinition($name, $value);
-		}
-
-		if ($value instanceof Definition) {
-			$this->setDefinition($name, $value);
-		} else {
-			$this->resolvedEntries[$name] = $value;
-		}
-	}
-
 
 
 	function set($key, $value)				//	alias for __set()
 	{
 		return $this->__set($key, $value);
 	}
-	function &get($key, $default = null)	//	similar to __get()
+	function get($key, $default = null)		//	similar to __get()
 	{
 		return $this->bindings[$key] ?? $default;
 	}
@@ -230,8 +215,6 @@ class Container implements ArrayAccess
 	{
 		unset($this->bindings[$key]);
 	}
-
-
 
 
 	/**
@@ -339,5 +322,4 @@ class Container implements ArrayAccess
 	{
 		unset($this->bindings[$key]);
 	}
-
 }

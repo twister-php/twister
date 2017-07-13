@@ -27,7 +27,7 @@ class Response
 
 	private $renderer		=	null;
 
-	function __construct(Container $c, callable $layout, $mixed)
+	function __construct(Container $c, $layout, $mixed)
 	{
 		$this->container = $c;
 
@@ -38,8 +38,11 @@ class Response
 //		require __DIR__ . '/../classes/lang.php';
 //		require __DIR__ . '/../classes/assets.php';
 
+		$paths = $c->config['paths'];
+
 		//	Load layout/template specific default configuration
-		(require __DIR__ . '/../layouts/' . $layout . '.php')($this); // requires Less!?!? WHY???
+		//(require __DIR__ . '/../layouts/' . $layout . '.php')($this); // requires Less!?!? WHY???
+		(require $paths['layouts'] . $layout . '.php')($this); // requires Less!?!? WHY???
 
 		//	Load route specific page configuration
 		if (is_string($mixed))
@@ -57,12 +60,14 @@ class Response
 			else if (isset($mixed['elements']))	$this->elements				=	array_merge($this->elements, $mixed['elements']);
 		}
 
+		$path = $paths['elements'];
+
 		//
 		//	Process Element Initialization
 		//
 		foreach ($this->elements as $element)
 		{
-			$filename = __DIR__ . '/../elements/' . $element . '/init.php';
+			$filename = $path . $element . '/init.php';
 			$init = require $filename;
 			if (is_callable($init))
 				$init($this);
