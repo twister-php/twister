@@ -23,7 +23,7 @@ use ArrayAccess;
 class Container implements ArrayAccess
 {
 	/**
-	 * The current globally available container (if any).
+	 * The current globally available container instance (if any).
 	 *
 	 * @var static
 	 */
@@ -55,11 +55,12 @@ class Container implements ArrayAccess
 			$this->aliases = $c['aliases'];
 			unset($c['aliases']);
 		}
-		$this->aliases[__CLASS__] = $this;
+
+		$this->bindings[self::class] = $this;
 	}
 
 	/**
-	 * Set the globally available instance of the container.
+	 * Get the globally available instance of the container.
 	 *
 	 * @return static
 	 */
@@ -101,6 +102,111 @@ class Container implements ArrayAccess
 		}
 	}
 
+	/**
+	 * Call the given function using the given parameters.
+	 *
+	 * Missing parameters will be resolved from the container.
+	 *
+	 * @param callable $callable   Function to call.
+	 * @param array    $params     Additional parameters to use. Can be indexed by the parameter names
+	 *                             or not indexed (same order as the parameters).
+	 *                             The array can also contain DI definitions, e.g. DI\get().
+	 *
+	 * @return mixed Result of the function.
+	 */
+	public function call(callable $callable, array $params = null)
+	{
+		$reflected = new \ReflectionFunction($callable);
+		return $reflected->invokeArgs($this->_buildArgList($reflected, $params));
+	}
+
+	private function _buildArgList(\ReflectionFunctionAbstract $reflected, array &$params = null)
+	{
+		$args	=	[];
+		foreach ($reflected->getParameters() as $index => $param)
+		{
+			if ($param->hasType() && isset($this->bindings[$param->getType()]))
+			{
+				$value = &$this->bindings[$param->getType()];
+				$args[] = is_callable($value) ? $value($this) : $value;
+			}
+			else
+			{
+				$name = $param->name;
+				if (isset($params[$name]))
+				{
+					$args[] = $params[$name];
+				}
+				else if (isset($params[$index]))
+				{
+					$args[] = $params[$index];
+				}
+				else
+				{
+					if ( ! $param->isOptional())
+						throw new \Exception('Unable to find NON-optional parameter `' . $param->name . ($param->hasType() ? '` of type `' . $param->getType() : null) . '` for route controller/handler: ' . var_export($this->route, true));
+					$args[] = $param->getDefaultValue();
+				}
+			}
+		}
+		return $args;
+	}
+
+	/**
+	 * Build an entry of the container by its name.
+	 *
+	 * This method behaves like get() except resolves the entry again every time.
+	 * For example if the entry is a class then a new instance will be created each time.
+	 *
+	 * This method makes the container behave like a factory.
+	 *
+	 * @param string $name       Entry name or a class name.
+	 * @param array  $parameters Optional parameters to use to build the entry.
+	 *                           Use this to force specific parameters to specific values.
+	 *                           Parameters not defined in this array will be resolved using the container.
+	 *
+	 * @throws InvalidArgumentException The name parameter must be of type string.
+	 * @throws DependencyException Error while resolving the entry.
+	 * @throws NotFoundException No entry found for the given name.
+	 * @return mixed
+	 */
+	public function make(string $name, array $parameters = null)
+	{
+		$definition = $this->definitionSource->getDefinition($name);
+		if (! $definition) {
+			// If the entry is already resolved we return it
+			if (array_key_exists($name, $this->resolvedEntries)) {
+				return $this->resolvedEntries[$name];
+			}
+
+			throw new NotFoundException("No entry or class found for '$name'");
+		}
+
+		return $this->resolveDefinition($definition, $parameters);
+	}
+
+	/**
+	 * Define an object or a value in the container.
+	 *
+	 * @param string $name Entry name
+	 * @param mixed|DefinitionHelper $value Value, use definition helpers to define objects
+	 */
+	public function set(string $name, $value)
+	{
+		if ($value instanceof DefinitionHelper) {
+			$value = $value->getDefinition($name);
+		} elseif ($value instanceof \Closure) {
+			$value = new FactoryDefinition($name, $value);
+		}
+
+		if ($value instanceof Definition) {
+			$this->setDefinition($name, $value);
+		} else {
+			$this->resolvedEntries[$name] = $value;
+		}
+	}
+
+
 
 	function set($key, $value)				//	alias for __set()
 	{
@@ -127,6 +233,7 @@ class Container implements ArrayAccess
 
 
 
+
 	/**
 	 * Determine if a given offset exists.
 	 *
@@ -135,7 +242,7 @@ class Container implements ArrayAccess
 	 */
 	public function offsetExists($key)
 	{
-		return $this->__isset($key);
+		return isset($this->bindings[$key]);
 	}
 
 	/**
