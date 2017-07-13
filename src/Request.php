@@ -289,7 +289,7 @@ class Request
 	}
 
 	//	Dynamic route controller::handler argument builder
-	private function  (array $params)
+	private function _get_args_from_params(array $params)
 	{
 		$byType	=	[	'twister\container'	=>	&$this->container,
 						'db'		=>	&$this->db,
