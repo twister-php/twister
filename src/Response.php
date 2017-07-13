@@ -1,5 +1,7 @@
 <?php
 
+namespace Twister;
+
 /**
  *	HTML Response Class
  *	JSON/Ajax output is handled elsewhere
