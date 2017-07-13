@@ -2,6 +2,8 @@
 
 namespace Twister;
 
+use ArrayAccess;
+
 /**
  *	Multi-purpose IoC/DI Container
  *	==============================
@@ -18,7 +20,7 @@ namespace Twister;
  *	Laravel Container: https://laravel.com/docs/5.4/container
  *	Symfony Container: http://symfony.com/doc/current/service_container.html
  */
-class Container implements \ArrayAccess
+class Container implements ArrayAccess
 {
 	/**
 	 * The current globally available container (if any).
