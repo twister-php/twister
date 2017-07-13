@@ -27,7 +27,7 @@ class Response
 
 	private $renderer		=	null;
 
-	function __construct(Container $c, string $layout, $mixed)
+	function __construct(Container $c, callable $layout, $mixed)
 	{
 		$this->container = $c;
 
