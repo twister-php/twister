@@ -1,7 +1,7 @@
 {
 	"name": "twister/twister",
-	"description": "Twister - PHP micro-framework",
-	"keywords": ["framework", "microframework", "rest", "router"],
+	"description": "Twister - micro-framework component library",
+	"keywords": ["framework", "micro-framework", "library", "router"],
 	"type": "library",
 	"homepage": "https://github.com/twister-php/twister/",
 	"license": "MIT",
