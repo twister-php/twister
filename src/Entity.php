@@ -7,7 +7,7 @@
 
 namespace Twister;
 
-class Entity implements \ArrayAccess
+class Entity
 {
 	protected $properties	=	null;
 
@@ -51,28 +51,6 @@ class Entity implements \ArrayAccess
 	}
 
 
-	public function &all()
-	{
-		return $this->properties;
-	}
-	public function get($name)						//	alias for __get()
-	{
-		return $this->properties[$name];
-	}
-	public function set($name, $value)				//	alias for __set()
-	{
-		return $this->properties[$name] = $value;
-	}
-	public function has($name)						//	alias for __isset()
-	{
-		return isset($this->properties[$name]);
-	}
-	public function remove($name)					//	alias for __unset()
-	{
-		unset($this->properties[$name]);
-	}
-
-
 	public function __call($method, $args)
 	{
 		array_unshift($args, $this);
@@ -86,26 +64,5 @@ class Entity implements \ArrayAccess
 	{
 		$this->properties[$method] = $callable;
 		return $this;
-	}
-
-
-	/**
-	 *	ArrayAccess interface
-	 */
-	public function offsetGet($name)			//	eg. var_dump($obj['two']);
-	{
-		return $this->properties[$name];
-	}
-	public function offsetSet($name, $value)	//	eg. $obj['two'] = 'A value';
-	{
-		$this->properties[$name] = $value;
-	}
-	public function offsetExists($name)			//	eg. isset($obj['two'])
-	{
-		return isset($this->properties[$name]);
-	}
-	public function offsetUnset($name)			//	eg. unset($obj['two']);
-	{
-		unset($this->properties[$name]);
 	}
 }
