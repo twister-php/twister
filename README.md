@@ -1,12 +1,9 @@
 # Twister
-> Twister is a fast and light-weight micro-framework component library
-
-Another definition of this code release would be;
-> Twister is a set of fast and light-weight components around which a framework can be written
+> Twister is a fast and light-weight component library
 
 ## Skeleton App
 
-There is also a [skeleton application](https://github.com/twister-php/skeleton) based on this code!
+There is a [skeleton application](https://github.com/twister-php/skeleton) based on this code!
 
 ## Container
 
@@ -53,7 +50,7 @@ The code above actually calls a function registered like this:
 ```
 
 
-These dynamic 'properties' have been pre-configured in the 'controller' config file, they use `__get`, `__set` and `__call`.
+These 'dynamic properties' have been pre-configured in the 'controller' config file, they use `__get`, `__set` and `__call`.
 More properties can easily be added:
 ```php
 $c->session = new Session();
@@ -73,6 +70,7 @@ Along with the Container, comes a very flexible and fast router (inside the Requ
 I consider this router to be THE fastest router I've tested, with the same functionality.
 
 It includes the ability to filter by method (GET/POST), and optional parameters like `/user/{id}[/{name}]`.
+The code was partially inspired by FastRoute.
 
 Another somewhat unique capability is the ability to pre-define the patterns associated with named parameters eg. `id`=>`\d+`
 So everytime you specify `{id}`, `{date}`, `{uuid}` etc. in the routes, the pre-configured patterns are used,
@@ -101,10 +99,7 @@ So my philosophy is simple; just KISS!
 
 ## Proof-of-concept
 
-Although Twister is a fully functional and useable framework (based on my personal framework),
-it's more a proof-of-concept for me to demonstrate a few concepts and alternative design decisions.
-
-Also, I would consider it an honor if it became the basis of YOUR own Container.
+These components form the core of my framework, but it's more a proof-of-concept for me to demonstrate and experiment on a few concepts and alternative design decisions.
 
 After all, if we never re-invented the wheel, we would still be driving horse-drawn carriages; or worse!
 
