@@ -1,160 +1,157 @@
 <?php
 
+/**
+ * Collection class with dynamic members and methods
+ * Similar functionality to an Array or Dictionary class
+ * Typically holding a collection/array of Entity members
+ */
+
 namespace Twister;
 
 class Collection implements \Iterator, \Countable, \ArrayAccess
 {
-	protected $_	=	null;
+	protected $members	=	null;
+	protected $methods	=	null;
 
-	public function __construct(array $members = null)
+	public function __construct(array $members = null, array $methods = null)
 	{
-		$this->_	=&	$members;
-	}
-
-	function &__get($key)
-	{
-		return $this->_[$key] ?? null;
-	}
-	function __set($key, $value)
-	{
-		return $this->_[$key] = $value;
+		$this->members	=&	$members;
+		$this->methods	=&	$methods;
 	}
 
 
-	function __isset($key)
+	/**
+	 * Get member by id/index
+	 *
+	 * @param  string|int  $idx
+	 * @return mixed
+	 */
+	public function __get($idx)
 	{
-		return isset($this->_[$key]);
+		return $this->members[$idx];
 	}
-	function __unset($key)
+
+	/**
+	 * Set member by id/index
+	 *
+	 * @param  string|int  $idx
+	 * @param  mixed       $value
+	 * @return void
+	 */
+	public function __set($idx, $value)
 	{
-		unset($this->_[$key]);
+		$this->members[$idx] = $value;
 	}
 
 
-	function &all()
+	function __isset($idx)
 	{
-		return $this->_;
+		return isset($this->members[$idx]);
 	}
-	function set($key, $value)	//	alias for __set()
+	function __unset($idx)
 	{
-		return $this->_[$key] =& $value;
-	}
-	function &get($key, $default = null)	//	alias for __get()
-	{
-		return $this->_[$key] ?? $default;
-	}
-	function has($key)	//	alias for __isset()
-	{
-		return isset($this->_[$key]);
-	}
-	function &merge($key, array $arr)	//	we need this function because we cannot (re)`set` the arrays to new values without unsetting the old values first! ie. __set() will fail because it already exists!
-	{
-		//	TODO: Add is_array() checks to the container, and add variable number of array inputs!
-		$this->_[$key] = array_merge($this->_[$key], $arr);
-		return $this->_[$key];
-	}
-	function remove($key)	//	alias for __unset()
-	{
-		unset($this->_[$key]);
+		unset($this->members[$idx]);
 	}
 
 
-
-
-	function &__call($method, $args)
+	public function &all()
 	{
-		if (isset($this->_[$method]))
-			if (is_callable($this->_[$method]))
-			{
-				$result = call_user_func_array($this->_[$method], $args);
-				return $result;
-			}
-			else
-				return $this->_[$method];
-		else
-		{
-			if (preg_match('/^([gs]et|has|isset|unset)([A-Z_])(.*)$/', $method, $match))
-			{
-				$property = strtolower($match[2]). $match[3];
-				switch($match[1])
-				{
-					case 'get': return $this->_[$property] ?? $args[0] ?? null;
-					case 'set': return $this->_[$property] = $args[0];
-					case 'has': //	fallthrough vvv alias for `isset`
-					case 'isset': $result = isset($this->_[$property]); return $result;
-					case 'unset': $result = null; unset($this->_[$property]); return $result;
-				}
-				//throw new \InvalidArgumentException("Property {$property} doesn't exist");
-			}
-			throw new \InvalidArgumentException(__CLASS__ . "->{$method}() doesn't exist");
-		}
+		return $this->members;
+	}
+	public function get($name)						//	alias for __get()
+	{
+		return $this->members[$name];
+	}
+	public function set($name, $value)				//	alias for __set()
+	{
+		return $this->members[$name] = $value;
+	}
+	public function has($name)						//	alias for __isset()
+	{
+		return isset($this->members[$name]);
+	}
+	public function remove($name)					//	alias for __unset()
+	{
+		unset($this->members[$name]);
 	}
 
-	//
-	//	Workaround for the `array access functions` eg. array_push($obj->toArray(), 'Hello World!');
-	//
+
+	/**
+	 *	Workaround for the `array access functions` eg. array_push($obj->toArray(), $value);
+	 */
 	public function &toArray()
 	{
-		return $this->_;
-	}
-	public function &__invoke()
-	{	//	TODO: What do you think about this technique? We could just leave it if we don't use it!
-		//	Basically, we are calling an internal `__invoke` handler
-		//	eg. $myCollection['__invoke'] = function($c) { return $c->all(); }
-		return $this->_['__invoke']($this);
+		return $this->members;
 	}
 
-	//
-	//	Iterator interface
-	//
+
+	public function __call($method, $args)
+	{
+		array_unshift($args, $this);
+		return call_user_func_array($this->methods[$method], $args);
+	}
+	public function __invoke()
+	{
+		return $this->methods['__invoke']($this);
+	}
+	public function setMethod($method, callable $callable)
+	{
+		$this->methods[$method] = $callable;
+		return $this;
+	}
+
+
+	/**
+	 *	Iterator interface
+	 */
 	public function rewind()
 	{
-		return reset($this->_);
+		return reset($this->members);
 	}
 	public function current()
 	{
-		return current($this->_);
+		return current($this->members);
 	}
 	public function key()
 	{
-		return key($this->_);
+		return key($this->members);
 	}
 	public function next()
 	{
-		return next($this->_);
+		return next($this->members);
 	}
 	public function valid()
 	{
-		return key($this->_) !== null;
+		return key($this->members) !== null;
 	}
 
 
-	//
-	//	Countable interface
-	//
+	/**
+	 *	Countable interface
+	 */
 	public function count()
 	{
-		return count($this->_);
+		return count($this->members);
 	}
 
 
-	//
-	//	ArrayAccess interface
-	//
-	public function offsetSet($id, $value)	//	eg. $obj['two'] = 'A value';
+	/**
+	 *	ArrayAccess interface
+	 */
+	public function offsetGet($idx)			//	eg. var_dump($obj['two']);
 	{
-		$this->_[$id] = $value;
+		return $this->members[$idx];
 	}
-	public function offsetExists($id)		//	eg. isset($obj['two'])
+	public function offsetSet($idx, $value)	//	eg. $obj['two'] = 'A value';
 	{
-		return isset($this->_[$id]);
+		$this->members[$idx] = $value;
 	}
-	public function offsetUnset($id)		//	eg. unset($obj['two']);
+	public function offsetExists($idx)		//	eg. isset($obj['two'])
 	{
-		unset($this->_[$id]);
+		return isset($this->members[$idx]);
 	}
-	public function offsetGet($id)			//	eg. var_dump($obj['two']);
+	public function offsetUnset($idx)		//	eg. unset($obj['two']);
 	{
-		return $this->_[$id];
+		unset($this->members[$idx]);
 	}
 }

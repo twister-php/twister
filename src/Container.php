@@ -218,17 +218,6 @@ class Container implements ArrayAccess
 
 
 	/**
-	 * Determine if a given offset exists.
-	 *
-	 * @param  string  $key
-	 * @return bool
-	 */
-	public function offsetExists($key)
-	{
-		return isset($this->bindings[$key]);
-	}
-
-	/**
 	 * Get the value at a given offset.
 	 *
 	 * @param  string  $key
@@ -249,6 +238,17 @@ class Container implements ArrayAccess
 	public function offsetSet($key, $value)
 	{
 		$this->__set($key, $value);
+	}
+
+	/**
+	 * Determine if a given offset exists.
+	 *
+	 * @param  string  $key
+	 * @return bool
+	 */
+	public function offsetExists($key)
+	{
+		return isset($this->bindings[$key]);
 	}
 
 	/**
