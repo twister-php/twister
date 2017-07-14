@@ -7,8 +7,8 @@ There is a [skeleton application](https://github.com/twister-php/skeleton) based
 
 ## Container
 
-At the heart of the framework, sits a very fast, very flexible, simple and elegant Inversion-of-Control (IoC) Container.
-In fact, there are **NO global variables, NO define's, NO pipeline, NO Kernel and NO App**; just the Container.
+At the heart of the library, sits a very fast, very flexible, simple and elegant Inversion-of-Control (IoC) Container.
+In fact, there is no need for **global variables, define's, pipelines, Kernels or an App**, as demonstrated in the [skeleton app](https://github.com/twister-php/skeleton).
 
 The Container controls the entire flow of code (except routing), with a custom `execute()` function (written by you);
     which is actually just an anonymous callback function inside the Container, called from the Front Controller (index.php);
