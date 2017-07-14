@@ -16,6 +16,8 @@ The Container controls the entire flow of code (except routing), with a custom `
     ie. There is NO pre-programmed flow of the program or hard-coded Kernel/App.
       Most things are handled/registered with the IoC Container, objects are pre-configured and 'lazy-loaded' on request/use only!
 
+The primary technique used is called 'inline factories' (on [PHP-DI](http://php-di.org/)) to create both singleton AND unique instances.
+
 For example:
 
 When you require something from the config files:
