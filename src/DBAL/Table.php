@@ -20,6 +20,6 @@ class Table
 
 	public static function build($db, string $table)
 	{
-
+echo 'Build ' . $table;
 	}
 }
