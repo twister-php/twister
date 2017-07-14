@@ -6,7 +6,7 @@
 
 namespace Twister\DBAL\Types;
 
-class Type	//	AKA Type (Doctrine), Primitive, Core
+abstract class BaseType	//	AKA Type (Doctrine), Primitive, Core, Base
 {
 	const TYPE_INT			=	0;
 	const TYPE_TINYINT		=	1;

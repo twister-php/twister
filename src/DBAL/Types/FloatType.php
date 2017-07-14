@@ -6,7 +6,7 @@
 
 namespace Twister\DBAL\Types;
 
-class Float extends Type
+class ArrayType extends BaseType
 {
 	public $decimals		= null;
 //	public $unsigned		= null; // do we really need this ??? Could be implemented inside the entity classes! I think MySQL STILL accepts negatives anyway!

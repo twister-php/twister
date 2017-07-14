@@ -6,7 +6,7 @@
 
 namespace Twister\DBAL\Types;
 
-class Array extends Type implements \Iterator, \Countable, \ArrayAccess
+class ArrayType extends BaseType implements \Iterator, \Countable, \ArrayAccess
 {
 	protected $members	=	null;
 

@@ -6,7 +6,7 @@
 
 namespace Twister\DBAL\Types;
 
-class String extends Type
+class ArrayType extends BaseType
 {
 	const CHARSET_BINARY	= 0;	// unused	(the charset of BINARY fields is NULL!) ... we need to put BINARY data types inside string, for the maxlength ...
 	const CHARSET_LATIN1	= 1;

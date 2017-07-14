@@ -6,7 +6,7 @@
 
 namespace Twister\DBAL\Types;
 
-class Integer extends Type
+class ArrayType extends BaseType
 {
 	public $min				=	null;
 	public $max				=	null;
