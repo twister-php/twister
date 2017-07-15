@@ -17,6 +17,9 @@
 		"zendframework/zend-diactoros": "^1.0"
 	},
 	"autoload": {
+		 "psr-0": {
+			"Schema\\": "src/"
+		},
 		 "psr-4": {
 			"Twister\\": "src/",
 			"Schema\\": "src/"
