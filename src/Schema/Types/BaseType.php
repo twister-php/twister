@@ -2,185 +2,51 @@
 
 namespace Twister\Schema\Types;
 
-abstract class BaseType	//	AKA Type (Doctrine), Primitive, Core, Base
+abstract class BaseType
 {
-	static $primitives		=	[	'int',
-									'tinyint',
-									'smallint',
-									'mediumint',
-									'bigint',
-									'bit',
-									'float',
-									'double',
-									'decimal',
-									'numeric',
-									'timestamp',
-									'datetime',
-									'date',
-									'time',
-									'year',
-									'varchar',
-									'char',
-									'blob',
-									'tinyblob',
-									'mediumblob',
-									'longblob',
-									'text',
-									'tinytext',
-									'mediumtext',
-									'longtext',
-									'binary',
-									'varbinary',
-									'enum',
-									'set'
-								];
+	protected $properties	=	null;
 
-	public $type		=	null;
-	public $default		=	null;
-	public $nullable	=	null;
+	public function __construct(array $properties)
+	{
+		$properties['type']		=	&$properties[0];
+		$properties['default']	=	&$properties[1];
+		$properties['nullable']	=	&$properties[2];
 
-//	$flags			= null;		//	We might have to use `flags` if we want to support more than just `nullable` eg. `binary`, `primary_key`, `unique_key`, `unsigned`, `auto_increment` etc.
-	/*
-	static $flag_types = array(
-					MYSQLI_NUM_FLAG				=>	'numeric',			//	Field is defined as NUMERIC
-					MYSQLI_PART_KEY_FLAG		=>	'part_key',			//	Field is part of an multi-index
-					MYSQLI_SET_FLAG				=>	'set',				//	Field is defined as SET
-					MYSQLI_TIMESTAMP_FLAG		=>	'timestamp',		//	Field is defined as TIMESTAMP
-					MYSQLI_AUTO_INCREMENT_FLAG	=>	'auto_increment',	//	Field is defined as AUTO_INCREMENT
-					MYSQLI_ENUM_FLAG			=>	'enum',				//	Field is defined as ENUM. Available since PHP 5.3.0.
-					MYSQLI_BINARY_FLAG			=>	'binary',			//	Field is defined as BINARY. Available since PHP 5.3.0.
-					MYSQLI_GROUP_FLAG			=>	'group_by',			//	Field is part of GROUP BY
-					MYSQLI_ZEROFILL_FLAG		=>	'zerofill',			//	Field is defined as ZEROFILL
-					MYSQLI_UNSIGNED_FLAG		=>	'unsigned',			//	Field is defined as UNSIGNED
-					MYSQLI_BLOB_FLAG			=>	'blob',				//	Field is defined as BLOB
-					MYSQLI_MULTIPLE_KEY_FLAG	=>	'multiple_key',		//	Field is part of an index.
-					MYSQLI_UNIQUE_KEY_FLAG		=>	'unique_key',		//	Field is part of a unique index.
-					MYSQLI_PRI_KEY_FLAG			=>	'primary_key',		//	Field is part of a primary index
-					MYSQLI_NOT_NULL_FLAG		=>	'not_null'			//	Indicates that a field is defined as NOT NULL
-				);
-
-	//	alternative
-	const FLAG_NULLABLE		=	MYSQLI_NOT_NULL_FLAG;
-	const FLAG_PRIMARY_KEY	=	MYSQLI_PRI_KEY_FLAG;
-	const FLAG_UNIQUE		=	MYSQLI_UNIQUE_KEY_FLAG;
-	const FLAG_INDEX		=	MYSQLI_MULTIPLE_KEY_FLAG;	//	or MYSQLI_PART_KEY_FLAG ???
-	const FLAG_AUTO			=	MYSQLI_AUTO_INCREMENT_FLAG;
-	const FLAG_UNSIGNED		=	MYSQLI_UNSIGNED_FLAG;
-	*/
-
-//	public $validator		= null;		// callback funtion! AKA $valid ... or we make `valid()` a function we call which internally calls this function!?!?
-//	public $escape			= null;		// callback funtion!
-//	public $range			= null;		// can be: array(0, 255) ... or an array of enums eg. array('US','UK','DE','FR') etc. AKA dimentions AKA attributes AKA properties
-//	public $value			= null;		// do we store the value here ??? NO ... we don't need ALL this shit for each value, this class will be used in the (entity) model for each column!
-
-	/*
-	static $intrinsics = array(
-					MYSQLI_TYPE_DECIMAL		=>	'decimal',		//	Field is defined as DECIMAL
-					MYSQLI_TYPE_NEWDECIMAL	=>	'numeric',		//	Precision math DECIMAL or NUMERIC field (MySQL 5.0.3 and up)
-					MYSQLI_TYPE_BIT			=>	'bit',			//	Field is defined as BIT (MySQL 5.0.3 and up)
-					MYSQLI_TYPE_TINY		=>	'tinyint',		//	Field is defined as TINYINT
-					MYSQLI_TYPE_SHORT		=>	'smallint',		//	Field is defined as SMALLINT
-					MYSQLI_TYPE_LONG		=>	'int',			//	Field is defined as INT
-					MYSQLI_TYPE_FLOAT		=>	'float',		//	Field is defined as FLOAT
-					MYSQLI_TYPE_DOUBLE		=>	'double',		//	Field is defined as DOUBLE
-					MYSQLI_TYPE_NULL		=>	'null',			//	Field is defined as DEFAULT NULL
-					MYSQLI_TYPE_TIMESTAMP	=>	'timestamp',	//	Field is defined as TIMESTAMP
-					MYSQLI_TYPE_LONGLONG	=>	'bigint',		//	Field is defined as BIGINT
-					MYSQLI_TYPE_INT24		=>	'mediumint',	//	Field is defined as MEDIUMINT
-					MYSQLI_TYPE_DATE		=>	'date',			//	Field is defined as DATE
-					MYSQLI_TYPE_TIME		=>	'time',			//	Field is defined as TIME
-					MYSQLI_TYPE_DATETIME	=>	'datetime',		//	Field is defined as DATETIME
-					MYSQLI_TYPE_YEAR		=>	'year',			//	Field is defined as YEAR
-					MYSQLI_TYPE_NEWDATE		=>	'date',			//	Field is defined as DATE
-					MYSQLI_TYPE_ENUM		=>	'enum',			//	Field is defined as ENUM
-					MYSQLI_TYPE_SET			=>	'set',			//	Field is defined as SET
-					MYSQLI_TYPE_TINY_BLOB	=>	'tinyblob',		//	Field is defined as TINYBLOB
-					MYSQLI_TYPE_MEDIUM_BLOB	=>	'mediumblob',	//	Field is defined as MEDIUMBLOB
-					MYSQLI_TYPE_LONG_BLOB	=>	'longblob',		//	Field is defined as LONGBLOB
-					MYSQLI_TYPE_BLOB		=>	'blob',			//	Field is defined as BLOB (& TEXT)
-					MYSQLI_TYPE_VAR_STRING	=>	'varchar',		//	Field is defined as VARCHAR
-					MYSQLI_TYPE_STRING		=>	'char',			//	Field is defined as CHAR or BINARY
-					// MySQL returns MYSQLI_TYPE_STRING for CHAR
-					// and MYSQLI_TYPE_CHAR === MYSQLI_TYPE_TINY
-					// so this would override TINYINT and mark all TINYINT as string
-					// https://sourceforge.net/p/phpmyadmin/bugs/2205/
-					MYSQLI_TYPE_CHAR		=>	'tinyint',		//	Field is defined as TINYINT. For CHAR, see MYSQLI_TYPE_STRING
-					MYSQLI_TYPE_GEOMETRY	=>	'geometry'		//	Field is defined as GEOMETRY
-				);
-
-				//	http://dev.mysql.com/doc/refman/5.7/en/json.html
-				//	As of MySQL 5.7.8, MySQL supports a native JSON data type
-				//	'json'
-
-				//	http://dev.mysql.com/doc/refman/5.7/en/spatial-datatypes.html
-				//	'geometry'
-				//	'linestring'
-				//	'polygon'
-				//	'multipoint'
-				//	'multilinestring'
-				//	'multipolygon'
-				//	'geometrycollection'
-				//	'polygon'
-				//	'point'			// WARNING: `point` data type doesn't have `(` !!! So we will have to fix some assumptions in the code!
-
-	private static $_type_classes = array(
-					MYSQLI_TYPE_DECIMAL		=>	primitive::T_FLOAT_CLASS,	//	Field is defined as DECIMAL
-					MYSQLI_TYPE_NEWDECIMAL	=>	primitive::T_FLOAT_CLASS,	//	Precision math DECIMAL or NUMERIC field (MySQL 5.0.3 and up)
-					MYSQLI_TYPE_BIT			=>	primitive::T_GENERIC_CLASS,	//	Field is defined as BIT (MySQL 5.0.3 and up)
-					MYSQLI_TYPE_TINY		=>	primitive::T_INTEGER_CLASS,	//	Field is defined as TINYINT
-					MYSQLI_TYPE_SHORT		=>	primitive::T_INTEGER_CLASS,	//	Field is defined as SMALLINT
-					MYSQLI_TYPE_LONG		=>	primitive::T_INTEGER_CLASS,	//	Field is defined as INT
-					MYSQLI_TYPE_FLOAT		=>	primitive::T_FLOAT_CLASS,	//	Field is defined as FLOAT
-					MYSQLI_TYPE_DOUBLE		=>	primitive::T_FLOAT_CLASS,	//	Field is defined as DOUBLE
-					MYSQLI_TYPE_NULL		=>	null,						//	Field is defined as DEFAULT NULL
-					MYSQLI_TYPE_TIMESTAMP	=>	primitive::T_STRING_CLASS,	//	Field is defined as TIMESTAMP
-					MYSQLI_TYPE_LONGLONG	=>	primitive::T_GENERIC_CLASS,	//	Field is defined as BIGINT
-					MYSQLI_TYPE_INT24		=>	primitive::T_INTEGER_CLASS,	//	Field is defined as MEDIUMINT
-					MYSQLI_TYPE_DATE		=>	primitive::T_STRING_CLASS,	//	Field is defined as DATE
-					MYSQLI_TYPE_TIME		=>	primitive::T_STRING_CLASS,	//	Field is defined as TIME
-					MYSQLI_TYPE_DATETIME	=>	primitive::T_STRING_CLASS,	//	Field is defined as DATETIME
-					MYSQLI_TYPE_YEAR		=>	primitive::T_GENERIC_CLASS,	//	Field is defined as YEAR
-					MYSQLI_TYPE_NEWDATE		=>	primitive::T_STRING_CLASS,	//	Field is defined as DATE
-					MYSQLI_TYPE_ENUM		=>	primitive::T_ARRAY_CLASS,	//	Field is defined as ENUM			<= PROBLEM HERE! ENUM() is classified as a STRING type and thus returns MYSQLI_TYPE_STRING
-					MYSQLI_TYPE_SET			=>	primitive::T_ARRAY_CLASS,	//	Field is defined as SET
-					MYSQLI_TYPE_TINY_BLOB	=>	primitive::T_STRING_CLASS,	//	Field is defined as TINYBLOB
-					MYSQLI_TYPE_MEDIUM_BLOB	=>	primitive::T_STRING_CLASS,	//	Field is defined as MEDIUMBLOB
-					MYSQLI_TYPE_LONG_BLOB	=>	primitive::T_STRING_CLASS,	//	Field is defined as LONGBLOB
-					MYSQLI_TYPE_BLOB		=>	primitive::T_STRING_CLASS,	//	Field is defined as BLOB (& TEXT)
-					MYSQLI_TYPE_VAR_STRING	=>	primitive::T_STRING_CLASS,	//	Field is defined as VARCHAR
-					MYSQLI_TYPE_STRING		=>	primitive::T_STRING_CLASS,	//	Field is defined as CHAR or BINARY
-					// MySQL returns MYSQLI_TYPE_STRING for CHAR
-					// and MYSQLI_TYPE_CHAR === MYSQLI_TYPE_TINY
-					// so this would override TINYINT and mark all TINYINT as string
-					// https://sourceforge.net/p/phpmyadmin/bugs/2205/
-					MYSQLI_TYPE_CHAR		=>	primitive::T_INTEGER_CLASS,	//	Field is defined as TINYINT. For CHAR, see MYSQLI_TYPE_STRING
-					MYSQLI_TYPE_GEOMETRY	=>	null						//	Field is defined as GEOMETRY
-				);
-
-	static $flag_types = array(
-					MYSQLI_NUM_FLAG				=>	'numeric',			//	Field is defined as NUMERIC
-					MYSQLI_PART_KEY_FLAG		=>	'part_key',			//	Field is part of an multi-index
-					MYSQLI_SET_FLAG				=>	'set',				//	Field is defined as SET
-					MYSQLI_TIMESTAMP_FLAG		=>	'timestamp',		//	Field is defined as TIMESTAMP
-					MYSQLI_AUTO_INCREMENT_FLAG	=>	'auto_increment',	//	Field is defined as AUTO_INCREMENT
-					MYSQLI_ENUM_FLAG			=>	'enum',				//	Field is defined as ENUM. Available since PHP 5.3.0.
-					MYSQLI_BINARY_FLAG			=>	'binary',			//	Field is defined as BINARY. Available since PHP 5.3.0.
-					MYSQLI_GROUP_FLAG			=>	'group_by',			//	Field is part of GROUP BY
-					MYSQLI_ZEROFILL_FLAG		=>	'zerofill',			//	Field is defined as ZEROFILL
-					MYSQLI_UNSIGNED_FLAG		=>	'unsigned',			//	Field is defined as UNSIGNED
-					MYSQLI_BLOB_FLAG			=>	'blob',				//	Field is defined as BLOB
-					MYSQLI_MULTIPLE_KEY_FLAG	=>	'multiple_key',		//	Field is part of an index.
-					MYSQLI_UNIQUE_KEY_FLAG		=>	'unique_key',		//	Field is part of a unique index.
-					MYSQLI_PRI_KEY_FLAG			=>	'primary_key',		//	Field is part of a primary index
-					MYSQLI_NOT_NULL_FLAG		=>	'not_null'			//	Indicates that a field is defined as NOT NULL
-				);
-	*/
+		$this->properties		=&	$properties;
+	}
 
 	function __construct($type, $default, $nullable)
 	{
 		$this->type			=	$type;
 		$this->default		=	$default;
 		$this->nullable		=	$nullable;
+	}
+
+	/**
+	 * Get table field/column property
+	 *
+	 * @param  string  $name
+	 * @return mixed
+	 */
+	public function __get($name)
+	{
+		return $this->properties[$name];
+	}
+
+	/**
+	 * Set table field/column property
+	 * Values cannot be set, only callables
+	 *
+	 * @param  string  $name
+	 * @param  mixed   $value
+	 * @return void
+	 */
+	public function __set($name, $value)
+	{
+		if ( ! isset($this->properties[$name]) || is_callable($this->properties[$name]))
+			$this->properties[$name] = $value;
+		else
+			throw new \Exception("Cannot set protected property {$name}");
 	}
 
 	function getType()

@@ -2,26 +2,73 @@
 
 namespace Twister\Schema\Types;
 
-class EnumType extends BaseType implements \Iterator, \Countable, \ArrayAccess
+class EnumType implements \Iterator, \Countable, \ArrayAccess
 {
-	protected $members	=	null;
+	private $properties	=	null;
+	private $members	=	null;
 
-	function __construct($type, $default, $nullable, array $members)
+	private static $isValid = null;	// cache the default isValid function
+
+	public function __construct(&$table, $name, $default, $nullable, array $members)
 	{
-		$this->type			=	$type;
-		$this->default		=	$default;
-		$this->nullable		=	$nullable;
+		$this->properties['table']		=	$table;
+		$this->properties['name']		=	$name;
+		$this->properties['type']		=	'enum';
+		$this->properties['default']	=	$default;
+		$this->properties['nullable']	=	$nullable;
 
-		$this->members		=	&$members;	//	array_combine($a, $b)
+		if (self::$isValid === null) {
+			self::$isValid = function ($table, $type, $value) { $type };
+		}
+		$this->properties['isValid']	=	self::$isValid
 
-		//	eg. enum('','collection','macrolanguage','ancient','family')
-	//	$this->array = explode('\',\'', substr($fd['Type'], strlen($intrinsic) + 2, -2)); // plus 2 because we need to skip `('` and minus 2 because we have to skip the last 2 chars: `')`
+		$this->members					=	$members;
+	}
 
-		//	RegExp versions:
-		//	preg_match_all('/\'(.*?)\'/', $matches);
-		//	preg_match_all('/(?<=[(,])([^,)]+)(?=[,)])/', $string, $matches);
-		//	$enumArray = explode(",", str_replace("'", "",preg_replace("/enum\((.+)\)/", "\\1", $enumString))); 
-		//	$this->array = $matches[1];
+	/**
+	 * Get table field/column property
+	 *
+	 * @param  string  $name
+	 * @return mixed
+	 */
+	public function __get($name)
+	{
+		return $this->properties[$name];
+	}
+
+	/**
+	 * Set table field/column property
+	 * Values cannot be set, only callables
+	 *
+	 * @param  string  $name
+	 * @param  mixed   $value
+	 * @return void
+	 */
+	public function __set($name, $value)
+	{
+		if ( ! isset($this->properties[$name]) || is_callable($this->properties[$name]))
+			$this->properties[$name] = $value;
+		else
+			throw new \Exception("Cannot set private property {$name}");
+	}
+
+
+	public function __call($method, $args)
+	{
+		return $this->properties[$method]($this, ...$args);		//	TEST	!!!
+/*
+		array_unshift($args, $this);
+		return call_user_func_array($this->properties[$method], $args);
+*/
+	}
+	public function __invoke($value)
+	{
+		return $this->properties['isValid']($this, $value);
+	}
+	public function setMethod($method, callable $callable)
+	{
+		$this->properties[$method] = $callable;
+		return $this;
 	}
 
 
