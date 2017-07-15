@@ -1,6 +1,6 @@
 <?php
 
-namespace Twister\DBAL\Types;
+namespace Twister\Schema\Types;
 
 abstract class BaseType	//	AKA Type (Doctrine), Primitive, Core, Base
 {

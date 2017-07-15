@@ -1,6 +1,6 @@
 <?php
 
-namespace Twister\DBAL;
+namespace Twister\Schema;
 
 class Table
 {

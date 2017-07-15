@@ -1,12 +1,8 @@
 <?php
 
-/**
- *	Immutable!
- */
+namespace Twister\Schema\Types;
 
-namespace Twister\DBAL\Types;
-
-class StringType extends BaseType
+class BinaryType extends BaseType
 {
 	const CHARSET_BINARY	= 0;	// unused	(the charset of BINARY fields is NULL!) ... we need to put BINARY data types inside string, for the maxlength ...
 	const CHARSET_LATIN1	= 1;

@@ -1,10 +1,6 @@
 <?php
 
-/**
- *	Immutable!
- */
-
-namespace Twister\DBAL\Types;
+namespace Twister\Schema\Types;
 
 class IntegerType extends BaseType
 {

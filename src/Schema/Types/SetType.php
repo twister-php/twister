@@ -1,12 +1,8 @@
 <?php
 
-/**
- *	Immutable!
- */
+namespace Twister\Schema\Types;
 
-namespace Twister\DBAL\Types;
-
-class ArrayType extends BaseType implements \Iterator, \Countable, \ArrayAccess
+class SetType extends BaseType
 {
 	protected $members	=	null;
 

@@ -1,10 +1,6 @@
 <?php
 
-/**
- *	Immutable!
- */
-
-namespace Twister\DBAL;
+namespace Twister\Schema\Types;
 
 class ArrayType extends Type implements \Iterator, \Countable, \ArrayAccess
 {
