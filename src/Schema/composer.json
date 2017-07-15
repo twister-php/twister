@@ -1,0 +1,22 @@
+{
+    "name": "twister/schema",
+    "type": "library",
+    "description": "Twister automated Schema builder",
+    "keywords": ["schema"],
+    "homepage": "https://github.com/twister-php/twister",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Trevor Herselman",
+            "email": "therselman@gmail.com"
+        }
+    ],
+    "require": {
+        "php": ">=7.0"
+    },
+    "autoload": {
+        "files": [ "Schema.php" ],
+        "psr-4": { "Twister\\Schema\\": "" }
+    },
+    "minimum-stability": "dev"
+}
