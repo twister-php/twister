@@ -94,7 +94,7 @@ class ArrayType extends BaseType implements \Iterator, \Countable, \ArrayAccess
 	 *	TODO: Sets can include multiple values eg. VALUE1 | VALUE2 etc.
 	 *		We need to validate the whole set!
 	 */
-	function isValid(string $value, bool $casesensitive = true)
+	function isValid($value)
 	{
 		static $combined = null;
 		if ($combined === null) {
@@ -122,8 +122,8 @@ class ArrayType extends BaseType implements \Iterator, \Countable, \ArrayAccess
 		trigger_error('Invalid data type passed to getIndex()', E_USER_ERROR);
 	}
 
-	function toSQL(&$value)
+	function toSQL($value)
 	{
-		return value;
+		return $value;
 	}
 }

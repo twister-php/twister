@@ -13,6 +13,12 @@ class IntegerType extends BaseType
 
 //	public $auto_increment	=	null;
 
+	private $clamp			=	function ($type, $value) {};	//	callback function for `clamp`
+	private $__invoke		=	function ($type, $value) {};	//	callback function for `__invoke`
+	private $toPHP			=	function ($type, $value) {};	//	callback function for toPHP
+	private $toSQL			=	function ($type, $value) {};	//	callback function for toSQL
+	private $valid			=	function ($type, $value) {};	//	callback function for isValid
+
 	public function __construct($type, $default, $nullable, $min, $max)
 	{
 		$this->type			=	$type;
@@ -38,7 +44,7 @@ class IntegerType extends BaseType
 	//	Either a NULL (if valid for the field), or ZERO or clamped to range!
 	public function clamp($value)
 	{
-		return isset($value) && is_numeric($value) ? min(max($value, $this->min), $this->max) : ($this->default ?: ($this->nullable ? null : 0));
+		return isset($value) && is_numeric($value) ? min(max($value, $this->min), $this->max) : $this->default ?: ($this->nullable ? null : min(max(0, $this->min), $this->max));
 	}
 
 	public function getMin()
@@ -49,11 +55,6 @@ class IntegerType extends BaseType
 	public function getMax()
 	{
 		return $this->max;
-	}
-
-	public function isUnsigned()
-	{
-		return $this->min >= 0;
 	}
 
 	public function getRange()

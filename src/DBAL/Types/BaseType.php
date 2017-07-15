@@ -1,43 +1,9 @@
 <?php
 
-/**
- *	Immutable!
- */
-
 namespace Twister\DBAL\Types;
 
 abstract class BaseType	//	AKA Type (Doctrine), Primitive, Core, Base
 {
-	const TYPE_INT			=	0;
-	const TYPE_TINYINT		=	1;
-	const TYPE_SMALLINT		=	2;
-	const TYPE_MEDIUMINT	=	3;
-	const TYPE_BIGINT		=	4;
-	const TYPE_BIT			=	5;
-	const TYPE_FLOAT		=	6;
-	const TYPE_DOUBLE		=	7;	//	AKA REAL
-	const TYPE_DECIMAL		=	8;
-	const TYPE_NUMERIC		=	9;	//	`In MySQL, DECIMAL(M,D) and NUMERIC(M,D) are the same, and both have a precision of exactly M digits.`
-	const TYPE_TIMESTAMP	=	10;
-	const TYPE_DATETIME		=	11;
-	const TYPE_DATE			=	12;
-	const TYPE_TIME			=	13;
-	const TYPE_YEAR			=	14;
-	const TYPE_VARCHAR		=	15;	//	AKA NVARCHAR
-	const TYPE_CHAR			=	16;
-	const TYPE_BLOB			=	17;
-	const TYPE_TINYBLOB		=	18;
-	const TYPE_MEDIUMBLOB	=	19;
-	const TYPE_LONGBLOB		=	20;
-	const TYPE_TEXT			=	21;
-	const TYPE_TINYTEXT		=	22;
-	const TYPE_MEDIUMTEXT	=	23;
-	const TYPE_LONGTEXT		=	24;
-	const TYPE_BINARY		=	25;
-	const TYPE_VARBINARY	=	26;
-	const TYPE_ENUM			=	27;
-	const TYPE_SET			=	28;
-
 	static $primitives		=	[	'int',
 									'tinyint',
 									'smallint',
@@ -319,35 +285,35 @@ abstract class BaseType	//	AKA Type (Doctrine), Primitive, Core, Base
 
 		switch ($properties[0])
 		{
-			case 'int':			return new Integer('int',		$properties[1], $properties[2], $properties[3] === 0 ? 0 : -2147483648, $properties[3] === 0 ? 4294967295 : 2147483647);
-			case 'tinyint':		return new Integer('tinyint',	$properties[1], $properties[2], $properties[3] === 0 ? 0 : -128, $properties[3] === 0 ? 255 : 127);
-			case 'float':		return new Float('float',		$properties[1], $properties[2], $properties[3]);
-			case 'varchar':		return new String('varchar',	$properties[1], $properties[2], $properties[3], $properties[4]);
-			case 'smallint':	return new Integer('smallint',	$properties[1], $properties[2], $properties[3] === 0 ? 0 : -32768, $properties[3] === 0 ? 65535 : 32767);
-			case 'enum':		return new Array('enum',		$properties[1], $properties[2], $properties[3]);
-			case 'mediumint':	return new Integer('mediumint',	$properties[1], $properties[2], $properties[3] === 0 ? 0 : -8388608, $properties[3] === 0 ? 16777215 : 8388607);
-			case 'date':		return new Type('date',			$properties[1], $properties[2]);
-			case 'bit':			return new Integer('bit',		$properties[1], $properties[2], 0, 1);
-			case 'char':		return new String('char',		$properties[1], $properties[2], $properties[3], $properties[4]);
-			case 'text':		return new String('text',		$properties[1], $properties[2], 65535, $properties[3]);
-			case 'timestamp':	return new Type('timestamp',	$properties[1], $properties[2]);
-			case 'binary':		return new String('binary',		$properties[1], $properties[2], $properties[3], 0);
-			case 'double':		return new Float('double',		$properties[1], $properties[2], $properties[3]);
-			case 'tinytext':	return new String('tinytext',	$properties[1], $properties[2], 255, $properties[3]);
-			case 'set':			return new Array('set',			$properties[1], $properties[2], $properties[3]);
-			case 'decimal':		return new Float('decimal',		$properties[1], $properties[2], $properties[3]);
-			case 'year':		return new Integer('year',		$properties[1], $properties[2], 1970, 2070); // 4-digit format = 1901 to 2155, or 0000.
-			case 'varbinary':	return new String('varbinary',	$properties[1], $properties[2], $properties[3], 0);
-			case 'bigint':		return new Integer('bigint',	$properties[1], $properties[2], $properties[3] === 0 ? 0 : -9223372036854775808, $properties[3] === 0 ? 18446744073709551615 : 9223372036854775807);
-			case 'datetime':	return new Type('datetime',		$properties[1], $properties[2]);
-			case 'mediumtext':	return new String('mediumtext',	$properties[1], $properties[2], 16777215, $properties[3]);
-			case 'longblob':	return new String('longblob',	$properties[1], $properties[2], 4294967295, $properties[3]);
-			case 'mediumblob':	return new String('mediumblob',	$properties[1], $properties[2], 16777215, $properties[3]);
-			case 'numeric':		return new Float('numeric',		$properties[1], $properties[2], $properties[3]);
-			case 'time':		return new Type('time',			$properties[1], $properties[2]);
-			case 'blob':		return new String('blob',		$properties[1], $properties[2], 65535, $properties[3]);
-			case 'tinyblob':	return new String('tinyblob',	$properties[1], $properties[2], 255, $properties[3]);
-			case 'longtext':	return new String('longtext',	$properties[1], $properties[2], 4294967295, $properties[3]);
+			case 'int':			return new IntegerType('int',		$properties[1], $properties[2], $properties[3] === 0 ? 0 : -2147483648, $properties[3] === 0 ? 4294967295 : 2147483647);
+			case 'tinyint':		return new IntegerType('tinyint',	$properties[1], $properties[2], $properties[3] === 0 ? 0 : -128, $properties[3] === 0 ? 255 : 127);
+			case 'float':		return new FloatType('float',		$properties[1], $properties[2], $properties[3]);
+			case 'varchar':		return new StringType('varchar',	$properties[1], $properties[2], $properties[3], $properties[4]);
+			case 'smallint':	return new IntegerType('smallint',	$properties[1], $properties[2], $properties[3] === 0 ? 0 : -32768, $properties[3] === 0 ? 65535 : 32767);
+			case 'enum':		return new ArrayType('enum',		$properties[1], $properties[2], $properties[3]);
+			case 'mediumint':	return new IntegerType('mediumint',	$properties[1], $properties[2], $properties[3] === 0 ? 0 : -8388608, $properties[3] === 0 ? 16777215 : 8388607);
+			case 'date':		return new DateType('date',			$properties[1], $properties[2]);
+			case 'bit':			return new IntegerType('bit',		$properties[1], $properties[2], 0, 1);
+			case 'char':		return new StringType('char',		$properties[1], $properties[2], $properties[3], $properties[4]);
+			case 'text':		return new StringType('text',		$properties[1], $properties[2], 65535, $properties[3]);
+			case 'timestamp':	return new DateType('timestamp',	$properties[1], $properties[2]);
+			case 'binary':		return new StringType('binary',		$properties[1], $properties[2], $properties[3], 0);
+			case 'double':		return new FloatType('double',		$properties[1], $properties[2], $properties[3]);
+			case 'tinytext':	return new StringType('tinytext',	$properties[1], $properties[2], 255, $properties[3]);
+			case 'set':			return new ArrayType('set',			$properties[1], $properties[2], $properties[3]);
+			case 'decimal':		return new FloatType('decimal',		$properties[1], $properties[2], $properties[3]);
+			case 'year':		return new IntegerType('year',		$properties[1], $properties[2], 1970, 2070); // 4-digit format = 1901 to 2155, or 0000.
+			case 'varbinary':	return new StringType('varbinary',	$properties[1], $properties[2], $properties[3], 0);
+			case 'bigint':		return new IntegerType('bigint',	$properties[1], $properties[2], $properties[3] === 0 ? 0 : -9223372036854775808, $properties[3] === 0 ? 18446744073709551615 : 9223372036854775807);
+			case 'datetime':	return new DateType('datetime',		$properties[1], $properties[2]);
+			case 'mediumtext':	return new StringType('mediumtext',	$properties[1], $properties[2], 16777215, $properties[3]);
+			case 'longblob':	return new StringType('longblob',	$properties[1], $properties[2], 4294967295, $properties[3]);
+			case 'mediumblob':	return new StringType('mediumblob',	$properties[1], $properties[2], 16777215, $properties[3]);
+			case 'numeric':		return new FloatType('numeric',		$properties[1], $properties[2], $properties[3]);
+			case 'time':		return new DateType('time',			$properties[1], $properties[2]);
+			case 'blob':		return new StringType('blob',		$properties[1], $properties[2], 65535, $properties[3]);
+			case 'tinyblob':	return new StringType('tinyblob',	$properties[1], $properties[2], 255, $properties[3]);
+			case 'longtext':	return new StringType('longtext',	$properties[1], $properties[2], 4294967295, $properties[3]);
 		}
 		throw new \Exception('Invalid data-type `' . $properties[0] . '` specified in ' . __METHOD__);
 	}

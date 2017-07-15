@@ -34,7 +34,7 @@ class StringType extends BaseType
 		return parent::isValid($value) && is_scalar($value) && strlen($value) <= $length;
 	}
 
-	function toSQL(&$value)
+	function toSQL($value)
 	{
 		return $value;
 	}
