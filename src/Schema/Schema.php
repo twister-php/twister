@@ -13,30 +13,30 @@ class Schema
 	private static $cache	=	null;
 
 	//	Set db to MySQL Connection object - if not set, then procedural style will be used
-	public static setConn($conn)
+	public static function setConn($conn)
 	{
 		self::$db = $conn;
 	}
 
 	//	Set the database schema name
-	public static setSchema($schema)
+	public static function setSchema($schema)
 	{
 		self::$schema = $schema != 'DATABASE()' ? '"' . $schema . '"' : 'DATABASE()';
 	}
 
 	//	Set the schema cache directory, where we can store files for the composer autoloader
-	public static setCache($cache)
+	public static function setCache($cache)
 	{
 		self::$cache = $cache;
 	}
 
-	public static __callStatic(string $table, array $args)
+	public static function __callStatic(string $table, array $args)
 	{
 		if ( ! isset($tables[$table]))
 		{
 			try
 			{
-				$class = 'Schema\\' . self::toPascalCase($table);
+				$class = 'Twister\\Schema\\' . self::toPascalCase($table);
 				$tables[$table] = new $class();
 			}
 			catch (\Exception $e)
@@ -51,7 +51,7 @@ class Schema
 	 *	Converts $table to PascalCase, preserving leading and trailing underscores '_'
 	 *	eg. nation_capitals__ => NationCapitals__
 	 */
-	private static toPascalCase($table)
+	private static function toPascalCase($table)
 	{
 		return str_repeat('_', strspn($table, '_')) . str_replace('_', '', ucwords($table, '_')) . str_repeat('_', strspn(strrev($table), '_'));
 	}
@@ -62,22 +62,26 @@ class Schema
 
 		$cache = $cache ?: self::$cache;
 
+		static $methods = null;
+		if ($methods === null)
+		{
 		//	here for potential caching possibilities !?!? Hopefully PHP can set an internal ref-counter and not re-define the functions each time!
-		static $methods =	[	'date'			=>	function ($type, string $value) { return $value === null && $type->nullable || preg_match('~^\d\d\d\d-\d\d-\d\d$~', $value) === 1; },	//	TODO: Add DateTime object validation! ie. instanceof DateTime
-								'datetime'		=>	function ($type, string $value) { return $value === null && $type->nullable || preg_match('~^\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d$~', $value) === 1; },
-								'time'			=>	function ($type, string $value) { return $value === null && $type->nullable || preg_match('~^\d\d:\d\d:\d\d$~', $value) === 1; },
-								'time_ex'		=>	function ($type, string $value) { return $value === null && $type->nullable || preg_match('~^-?\d?\d\d:\d\d:\d\d$~', $value) === 1; },	//	From: http://www.mysqltutorial.org/mysql-time/    A TIME value ranges from -838:59:59 to 838:59:59. In addition, a TIME value can have fractional seconds part that is up to microseconds precision (6 digits). To define a column whose data type is TIME with a fractional second precision part, you use the following syntax: column_name TIME(N);
-								'year'			=>	function ($type, string $value) { return $value === null && $type->nullable || preg_match('~^\d\d\d\d$~', $value) === 1; },
-								'enum'			=>	function ($type, string $value) { return in_array($value, $type->members); },
-								'int'			=>	function ($type, $value) { return $value === null && $type->nullable || is_numeric($value) && $value >= $type->min && $value <= $type->max; },
-								'float'			=>	function ($type, $value) { return $value === null && $type->nullable || is_numeric($value); },
-								'string'		=>	function ($type, $value) { return $value === null && $type->nullable || is_string($value) && ($type->charset); },
-							//	'[0,1]'			=>	function ($type, $value) { return $value === null && $type->nullable || is_numeric($value) && $value >= 0.0 && $value <= 1.0; },	//	HYPOTHETICAL 'bit'!
-								'clamp'			=>	function ($type, $value) { return isset($value) && is_numeric($value) ? min(max($value, $type->min), $type->max) : $type->default ?: ($type->nullable ? null : min(max(0, $type->min), $type->max)); },
-								'isTrue'		=>	function ($type) { return true; },
-								'isFalse'		=>	function ($type) { return false; },
-								'isUnsigned'	=>	function ($type) { return $type->min >= 0; },
-							];
+			self::$methods =	[	'date'			=>	function ($type, string $value) { return $value === null && $type->nullable || preg_match('~^\d\d\d\d-\d\d-\d\d$~', $value) === 1; },	//	TODO: Add DateTime object validation! ie. instanceof DateTime
+									'datetime'		=>	function ($type, string $value) { return $value === null && $type->nullable || preg_match('~^\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d$~', $value) === 1; },
+									'time'			=>	function ($type, string $value) { return $value === null && $type->nullable || preg_match('~^\d\d:\d\d:\d\d$~', $value) === 1; },
+									'time_ex'		=>	function ($type, string $value) { return $value === null && $type->nullable || preg_match('~^-?\d?\d\d:\d\d:\d\d$~', $value) === 1; },	//	From: http://www.mysqltutorial.org/mysql-time/    A TIME value ranges from -838:59:59 to 838:59:59. In addition, a TIME value can have fractional seconds part that is up to microseconds precision (6 digits). To define a column whose data type is TIME with a fractional second precision part, you use the following syntax: column_name TIME(N);
+									'year'			=>	function ($type, string $value) { return $value === null && $type->nullable || preg_match('~^\d\d\d\d$~', $value) === 1; },
+									'enum'			=>	function ($type, string $value) { return in_array($value, $type->members); },
+									'int'			=>	function ($type, $value) { return $value === null && $type->nullable || is_numeric($value) && $value >= $type->min && $value <= $type->max; },
+									'float'			=>	function ($type, $value) { return $value === null && $type->nullable || is_numeric($value); },
+									'string'		=>	function ($type, $value) { return $value === null && $type->nullable || is_string($value) && ($type->charset); },
+								//	'[0,1]'			=>	function ($type, $value) { return $value === null && $type->nullable || is_numeric($value) && $value >= 0.0 && $value <= 1.0; },	//	HYPOTHETICAL 'bit'!
+									'clamp'			=>	function ($type, $value) { return isset($value) && is_numeric($value) ? min(max($value, $type->min), $type->max) : $type->default ?: ($type->nullable ? null : min(max(0, $type->min), $type->max)); },
+									'isTrue'		=>	function ($type) { return true; },
+									'isFalse'		=>	function ($type) { return false; },
+									'isUnsigned'	=>	function ($type) { return $type->min >= 0; }
+								];
+		}
 
 		$sql = 'SELECT ' .
 					'TABLE_NAME,' .

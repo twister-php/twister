@@ -2,7 +2,7 @@
 
 namespace Twister\Schema;
 
-class Table
+abstract class Table
 {
 	protected $fields	=	null;
 
