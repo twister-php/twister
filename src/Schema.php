@@ -3,6 +3,7 @@
 //Twister\Schema::worlds()->id->min
 //Twister\Schema::users()->fields()
 
+namespace Twister;
 
 class Schema
 {
