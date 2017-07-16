@@ -4,10 +4,12 @@ namespace Twister\Schema\Types;
 
 class EnumType implements \Iterator, \Countable, \ArrayAccess
 {
-	private $properties	=	null;
-	private $members	=	null;
+	protected $properties	=	null;
+	private $members		=	null;
 
-	private static $isValid = null;	// cache the default isValid function
+	public	$required		=	false;	//	`required` is a publically changeable property (ie. we can override the default, unlike the other properties! moved here because of __set() restrictions)
+
+	private static $isValid	=	null;	//	cache the default `isValid` function
 
 	public function __construct(&$table, $name, $default, $nullable, array $members)
 	{
@@ -17,13 +19,33 @@ class EnumType implements \Iterator, \Countable, \ArrayAccess
 		$this->properties['default']	=	$default;
 		$this->properties['nullable']	=	$nullable;
 
+		$this->required					=	$default === null && ! $nullable;
+
 		if (self::$isValid === null) {
-			self::$isValid = function ($table, $type, $value) { $type };
+			self::$isValid	=	function ($type, $value)
+								{
+									return $value !== null && in_array($value, $type->members) || $value === null && ($type->nullable || $this->default);
+								};	//	in_array(null, ['']) === true	... therefore we MUST test `$value !== null` before the in_array() or we might get false positives
 		}
-		$this->properties['isValid']	=	self::$isValid
+		$this->properties['isValid']	=	self::$isValid;
 
 		$this->members					=	$members;
 	}
+
+	//	Returns an `ALTER TABLE` statement for the $members ... what about the table cache !?!?
+	//	Setting $default to false will remove the default ... alternatively set the default to null !?!?
+	public function alterTable(array $members, $default = null)
+	{
+		//ALTER TABLE `fcm`.`worlds` 
+		//CHANGE COLUMN `type` `type` ENUM('real', 'auto|mated', 'private', 'public', 'invitational', 'scenario', 'campaign', 'archived') NOT NULL DEFAULT 'public' ;
+		//	TODO: $members cannot have any `\` characters! I think they are forbidden in Enums because MySQL removes them!
+		$default = $default ?? $this->properties['default'];
+		$default = $default === false ? null : ($default === null ? ' DEFAULT NULL' : ' DEFAULT \'' . $default . '\'');
+		return 'ALTER TABLE `' . $this->properties['table'] . '`' .
+				' CHANGE COLUMN `' . $this->properties['name'] . '` `' . $this->properties['name'] . '` ENUM(\'' . implode('\', \'', $members) . '\')' . ($this->properties['nullable'] ? ' NULL' : ' NOT NULL') . $default;
+	}
+
+
 
 	/**
 	 * Get table field/column property

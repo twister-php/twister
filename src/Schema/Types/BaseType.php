@@ -5,7 +5,7 @@ namespace Twister\Schema\Types;
 abstract class BaseType
 {
 	protected $properties	=	null;
-
+/*
 	public function __construct(array $properties)
 	{
 		$properties['type']		=	&$properties[0];
@@ -21,7 +21,7 @@ abstract class BaseType
 		$this->default		=	$default;
 		$this->nullable		=	$nullable;
 	}
-
+*/
 	/**
 	 * Get table field/column property
 	 *

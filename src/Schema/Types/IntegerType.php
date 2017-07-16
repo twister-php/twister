@@ -4,30 +4,48 @@ namespace Twister\Schema\Types;
 
 class IntegerType extends BaseType
 {
-	public $min				=	null;
-	public $max				=	null;
+	protected $properties	=	null;
 
-//	public $auto_increment	=	null;
+	public	$required		=	false;	//	`required` is a publically changeable property (ie. we can override the default, unlike the other properties! moved here because of __set() restrictions)
 
+	private static $isValid =	null;	//	cache the default `isValid` function
+/*
 	private $clamp			=	function ($type, $value) {};	//	callback function for `clamp`
 	private $__invoke		=	function ($type, $value) {};	//	callback function for `__invoke`
 	private $toPHP			=	function ($type, $value) {};	//	callback function for toPHP
 	private $toSQL			=	function ($type, $value) {};	//	callback function for toSQL
 	private $valid			=	function ($type, $value) {};	//	callback function for isValid
-
-	public function __construct($type, $default, $nullable, $min, $max)
+*/
+	public function __construct(&$table, $name, $type, $default, $nullable, $min, $max, $auto = false)
 	{
-		$this->type			=	$type;
-		$this->default		=	$default;
-		$this->nullable		=	$nullable;
+		$this->properties['table']			=	$table;
+		$this->properties['name']			=	$name;
+		$this->properties['type']			=	$type;
+		$this->properties['default']		=	$default;
+		$this->properties['nullable']		=	$nullable;
+		$this->properties['min']			=	$min;
+		$this->properties['max']			=	$max;
+		$this->properties['autoincrement']	=	$auto;
+		$this->properties['unsigned']		=	$min === 0;
 
-		$this->min			=	$min;
-		$this->max			=	$max;
+		$this->required						=	$default === null && ! $nullable && ! $auto;
+
+		if (self::$isValid === null) {
+			self::$isValid	=	function ($type, $value)
+								{
+									return $value !== null && is_string($value) && ($type->charset === 'latin1' ? strlen($value) : mb_strlen($value, 'utf8')) <= $this->maxlength || $value === null && ($type->nullable || $this->default);
+								};	//	in_array(null, ['']) === true	... therefore we MUST test `$value !== null` before the in_array() or we might get false positives
+		}
+		$this->properties['isValid']	=	self::$isValid;
 	}
 
+	public function unsigned()
+	{
+		return $this->min === 0;
+	}
 	public function isUnsigned()
 	{
-		return $this->min >= 0;
+		return $this->min === 0;
 	}
 
 	public function filter($value)

@@ -1,54 +1,88 @@
 <?php
 
-//Twister\Schema::worlds()->id->min
-//Twister\Schema::users()->fields()
+//$schema->worlds->id->min
+//$schema->users()
 
 namespace Twister;
 
 class Schema
 {
-	private static $tables	=	null;
-	private static $db		=	null;
-	private static $schema	=	'DATABASE()';
-	private static $cache	=	null;
+	private $tables			=	null;
+	private $conn			=	null;
+	private $schema			=	null;
+	private $location		=	null;			//	(save) location?	store?	folder?		directory?	cache?
+	private $constraints	=	null;
+	private $lang			=	null;
 
-	//	Set db to MySQL Connection object - if not set, then procedural style will be used
-	public static function setConn($conn)
+	public function __construct($conn = null, $schema = null, $location = null, $constraints = null, $lang = 'en')
 	{
-		self::$db = $conn;
+		$this->setConn($conn)->setSchema($schema)->setLocation($location)->setConstraints($constraints)->setLang($lang);
 	}
 
-	//	Set the database schema name
-	public static function setSchema($schema)
+	public function __get($table)
 	{
-		self::$schema = $schema != 'DATABASE()' ? '"' . $schema . '"' : 'DATABASE()';
-	}
-
-	//	Set the schema cache directory, where we can store files for the composer autoloader
-	public static function setCache($cache)
-	{
-		self::$cache = $cache;
-	}
-
-	public static function __callStatic(string $table, array $args)
-	{
-		if ( ! isset($tables[$table]))
+		if ( ! isset($this->tables[$table]))
 		{
 			try
 			{
-				$class = 'Twister\\Schema\\' . self::toPascalCase($table);
-				$tables[$table] = new $class();
+				$class = 'Twister\\Schema\\Tables\\' . self::toPascalCase($table);
+				$this->tables[$table] = new $class();
 			}
 			catch (\Exception $e)
 			{
-				$tables[$table] = self::build($table);
+				$this->tables[$table] = self::build($table);
 			}
 		}
-		return $tables[$table];
+		return $this->tables[$table];
 	}
 
 	/**
-	 *	Converts $table to PascalCase, preserving leading and trailing underscores '_'
+	 *	Set db to MySQL Connection object - if not set, then procedural style will be used
+	 */
+	public function setConn($conn)
+	{
+		self::$conn = $conn;
+		return $this;
+	}
+
+	/**
+	 *	Set the database schema name
+	 */
+	public function setSchema($schema)
+	{
+		self::$schema = $schema != 'DATABASE()' ? '"' . $schema . '"' : 'DATABASE()';
+		return $this;
+	}
+
+	/**
+	 *	Set the schema cache directory, where we can store files for the composer autoloader
+	 */
+	public static function setLocation($location)
+	{
+		self::$location = $location;
+		return $this;
+	}
+
+	/**
+	 *	Set the schema cache directory, where we can store files for the composer autoloader
+	 */
+	public static function setConstraints($constraints)
+	{
+		self::$location = $location;
+		return $this;
+	}
+
+	/**
+	 *	Set the language used for translations, default is English
+	 */
+	public static function setLang($lang = 'en')
+	{
+		self::$lang = $lang;
+		return $this;
+	}
+
+	/**
+	 *	Helper function to convert $table name to PascalCase, preserving leading and trailing underscores '_'
 	 *	eg. nation_capitals__ => NationCapitals__
 	 */
 	private static function toPascalCase($table)
@@ -56,11 +90,22 @@ class Schema
 		return str_repeat('_', strspn($table, '_')) . str_replace('_', '', ucwords($table, '_')) . str_repeat('_', strspn(strrev($table), '_'));
 	}
 
-	public static function build($table = null, $db = null, string $cache = null)
+	/**
+	 *	Force Table Schema Class (Cache) Rebuild
+	 *	There might be times where we need to force a table rebuild, eg. we change an Enum column at runtime!
+	 */
+	private static function forceRebuild($table)
+	{
+		throw new \Exception('TODO');
+	}
+
+	public function buildSchema($table = null)
 	{
 		mysqli_report( MYSQLI_REPORT_STRICT );
 
-		$cache = $cache ?: self::$cache;
+		if ( ! is_dir($this->location) || ! is_writable($this->location)) {
+			throw new \Exception('Schema cache folder location `' . $this->location . '` must be a valid writable folder to build the table schema!');
+		}
 
 		static $methods = null;
 		if ($methods === null)

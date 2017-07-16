@@ -4,25 +4,34 @@ namespace Twister\Schema\Types;
 
 class StringType extends BaseType
 {
-	const CHARSET_BINARY	= 0;	// unused	(the charset of BINARY fields is NULL!) ... we need to put BINARY data types inside string, for the maxlength ...
-	const CHARSET_LATIN1	= 1;
-	const CHARSET_UTF8		= 3;
-	const CHARSET_UTF8MB4	= 4;
-//	const CHARSET_UTF16		= 16;	// unused
-//	const CHARSET_UTF32		= 32;	// unused
+	protected $properties	=	null;
 
-	public $maxlength		= null;
-	public $charset			= null;
+	public	$required		=	false;	//	`required` is a publically changeable property (ie. we can override the default, unlike the other properties! moved here because of __set() restrictions)
+
+	private static $isValid	=	null;	//	cache the default `isValid` function
+
+	public function __construct(&$table, $name, $type, $default, $nullable, $length, $charset, $fixed = false)
+	{
+		$this->properties['table']		=	$table;
+		$this->properties['name']		=	$name;
+		$this->properties['type']		=	$type;
+		$this->properties['default']	=	$default;
+		$this->properties['nullable']	=	$nullable;
+		$this->properties['length']		=	$length;
+		$this->properties['charset']	=	$charset;
+		$this->properties['fixed']		=	$fixed;		//	fixed length - from Doctrine: `fixed (boolean): Whether a string or binary Doctrine type column has a fixed length. Defaults to false.`
+
 //	public $binary			= null; // needed? could be set by collation type: `utf8_bin` or data type `binary` ???
 
-	function __construct($type, $default, $nullable, $maxlength, $charset)
-	{
-		$this->type			=	$type;
-		$this->default		=	$default;
-		$this->nullable		=	$nullable;
+		$this->required					=	$default === null && ! $nullable;
 
-		$this->maxlength	=	$maxlength;
-		$this->charset		=	$charset;
+		if (self::$isValid === null) {
+			self::$isValid	=	function ($type, $value)
+								{
+									return $value !== null && is_string($value) && ($type->charset === 'latin1' ? strlen($value) : mb_strlen($value, 'utf8')) <= $this->maxlength || $value === null && ($type->nullable || $this->default);
+								};	//	in_array(null, ['']) === true	... therefore we MUST test `$value !== null` before the in_array() or we might get false positives
+		}
+		$this->properties['isValid']	=	self::$isValid;
 	}
 
 	function isValid($value)
