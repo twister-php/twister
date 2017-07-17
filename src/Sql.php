@@ -39,11 +39,16 @@ class SQL
 	//			->MIN('price')
 	//		->EXPLAIN();
 
-
 	public function __construct(...$args)
 	{
 		// WARNING: we need to loop and parse the values!
 		$this->sql = implode(null, $args);
+
+		if (self::$conn === null) {
+			$this->sql =	'** USING DUMMY CONNECTION FOR TESTING ONLY ** ' . PHP_EOL .
+							'** please call SQL::setConn() with a valid MySQLi connection when you are ready! ** ' . PHP_EOL . PHP_EOL;
+			self::setDummyConn();
+		}
 	}
 
 	public function __toString()
@@ -128,14 +133,28 @@ class SQL
 
 	/**
 	 *	Samples:
+	 *		UPDATE sequence SET c1 = 123, id = LAST_INSERT_ID(id+1);
+	 *		SELECT LAST_INSERT_ID();
+	 *
+	 *	PROBLEM: If we use `comma` with `UPDATE sequence SET c1 = 123, id = LAST_INSERT_ID(id+1);`  ... c1 will set the comma, but `LAST_INSERT_ID() does NOT require it!
+	 */
+	public function LAST_INSERT_ID($id = null)
+	{
+		$this->sql .= 'LAST_INSERT_ID(' . $id . ')';
+		return $this;
+	}
+
+	/**
+	 *	Samples:
 	 *	https://dev.mysql.com/doc/refman/5.7/en/insert.html
 	 *		INSERT [LOW_PRIORITY | DELAYED | HIGH_PRIORITY] [IGNORE] [INTO] tbl_name [PARTITION (partition_name,...)] [(col_name,...)]  {VALUES | VALUE} ({expr | DEFAULT},...),(...),...
 	 *
+	 *	eg. INSERT('IGNORE')->INTO(...)
 	 *
 	 */
-	public function INTO($tbl_name, ...$args)
+	public function INSERT(...$args)
 	{
-		$this->sql .= PHP_EOL . "\tINTO " . $tbl_name . ( ! empty($args) ? ' (' . implode(', ', $args) . ')' : null);
+		$this->sql .= 'INSERT ' . empty($args) ? null : implode(' ', $args) . ' ';
 		return $this;
 	}
 
@@ -146,11 +165,252 @@ class SQL
 	 *
 	 *
 	 */
+	public function INSERT_INTO($tbl_name, ...$args)
+	{
+		$this->sql .= 'INSERT ';
+		return $this->INTO($tbl_name, ...$args);
+	}
+
+	/**
+	 *	detect first character of column title ... if the title has '@' sign, then DO NOT ESCAPE! ... can be useful for 'DEFAULT', 'UNIX_TIMESTAMP()', or '@id' or 'MD5(...)' etc. (a connection variable) etc.
+	 *
+	 *	Examples:
+	 *		INTO('users', 'col1', 'col2', 'col3')
+	 *		INTO('users', ['col1', 'col2', 'col3'])
+	 *		INTO('users', ['col1' => 'value1', 'col2' => 'value2', 'col3' => 'value3'])
+	 *		INTO('users', ['col1', 'col2', 'col3'], ['value1', 'value2', 'value3'])
+	 *
+	 *	Samples:
+	 *	https://dev.mysql.com/doc/refman/5.7/en/insert.html
+	 *		INSERT [LOW_PRIORITY | DELAYED | HIGH_PRIORITY] [IGNORE] [INTO] tbl_name [PARTITION (partition_name,...)] [(col_name,...)]  {VALUES | VALUE} ({expr | DEFAULT},...),(...),...
+	 *
+	 *	@param string $tbl_name Table name to `INSERT INTO`
+	 *	@param array|string $partitions can be array or string
+	 *	@param mixed ... $args Parameters to use, either columns only or column-value pairs
+	 *	@return $this
+	 */
+	public function INTO($tbl_name, ...$args)
+	{
+		if (count($args) === 1 && is_array($args[0]))
+		{
+			$args = $args[0];
+			//	detect the data type of the first key,
+			//		if it's a string, then we have 'col' => 'values' pairs
+			if (is_string(key($args)))
+			{
+				$cols	=	null;
+				$values	=	null;
+				foreach ($args as $col => $value)
+				{
+					if ($col[0] === '@') {
+						$cols[]		=	substr($col, 1);
+						$values[]	=	$value;
+					}
+					else if (is_numeric($value)) {
+						$cols[]		=	$col;
+						$values[]	=	$value;
+					}
+					else if ($value === null) {
+						$cols[]		=	$col;
+						$values[]	=	'NULL';
+					}
+					else if (is_string($value)) {
+						$cols[]		=	$col;
+						$values[]	=	$this->returnEscaped($value);
+					}
+					else {
+						throw new \Exception('Invalid type `' . gettype($value) . '` sent to ' . __METHOD__ . '(); only numeric, string and null values are supported!');
+					}
+				}
+				$args = $cols;
+			}
+			else {
+				foreach ($args as $col) {
+					if ($col[0] === '@') {	//	strip '@' from beginning of all columns
+						$args[key($args)] = substr($col, 1);
+					}
+				}
+			}
+		}
+		else if (count($args) === 2 && is_array($args[0]))
+		{
+			if ( ! is_array($args[1])) {
+				throw new \Exception('Both first and second parameter of ' . __METHOD__ . ' must be arrays; type: ' . gettype($args[1]) . ' given for the second argument');
+			}
+			else if (count($args[0]) !== count($args[1])) {
+				throw new \Exception('Mismatching count of columns and values: count($columns) = ' . count($args[0]) . ' && count($values) = ' . count($args[1]));
+			}
+			$cols	=	$args[0];
+			$values	=	$args[1];
+			foreach ($cols as $index => $col)
+			{
+				if ($col[0] === '@') {
+					$cols[$index]	=	substr($col, 1);
+				//	$values[$index]	=	$value[$index];		//	unchanged
+				}
+				else {
+					$value = $values[$index];
+					if (is_numeric($value)) {
+					//	$cols[$index]	=	$col;			//	unchanged
+					//	$values[$index]	=	$value[$index];	//	unchanged
+					}
+					else if ($value === null) {
+					//	$cols[$index]	=	$col;			//	unchanged
+						$values[$index]	=	'NULL';
+					}
+					else if (is_string($value)) {
+					//	$cols[$index]	=	$col;			//	unchanged
+						$values[$index]	=	$this->returnEscaped($value);
+					}
+					else {
+						throw new \Exception('Invalid type `' . gettype($value) . '` sent to ' . __METHOD__ . '(); only numeric, string and null values are supported!');
+					}
+				}
+			}
+			$args = $cols;
+		}
+		$this->sql .= 'INTO ' . $tbl_name .
+						( ! empty($args)	?	' (' . implode(', ', $args) . ')' : null) .
+						( ! empty($values)	?	' VALUES (' . implode(', ', $values) . ')' : null);
+		return $this;
+	}
+
+	/**
+	 *	detect first character of column title ... if the title has '@' sign, then DO NOT ESCAPE! ... can be useful for 'DEFAULT', 'UNIX_TIMESTAMP()', or '@id' or 'MD5(...)' etc. (a connection variable) etc.
+	 *
+	 *	Examples:
+	 *		INTO_PARTITION('users', 'col1', 'col2', 'col3')
+	 *		INTO_PARTITION('users', ['col1', 'col2', 'col3'])
+	 *		INTO_PARTITION('users', ['col1' => 'value1', 'col2' => 'value2', 'col3' => 'value3'])
+	 *		INTO_PARTITION('users', ['col1', 'col2', 'col3'], ['value1', 'value2', 'value3'])
+	 *
+	 *	Samples:
+	 *	https://dev.mysql.com/doc/refman/5.7/en/insert.html
+	 *		INSERT [LOW_PRIORITY | DELAYED | HIGH_PRIORITY] [IGNORE] [INTO] tbl_name [PARTITION (partition_name,...)] [(col_name,...)]  {VALUES | VALUE} ({expr | DEFAULT},...),(...),...
+	 *
+	 *	@param string $tbl_name Table name to `INSERT INTO`
+	 *	@param array|string $partitions can be array or string
+	 *	@param mixed ... $args Parameters to use, either columns only or column-value pairs
+	 *	@return $this
+	 */
+	public function INTO_PARTITION(string $tbl_name, $partitions, ...$args)
+	{
+		if (count($args) === 1 && is_array($args[0]))
+		{
+			$args = $args[0];
+			//	detect the data type of the first key,
+			//		if it's a string, then we have 'col' => 'values' pairs
+			if (is_string(key($args)))
+			{
+				$cols	=	null;
+				$values	=	null;
+				foreach ($args as $col => $value)
+				{
+					if ($col[0] === '@') {
+						$cols[]		=	substr($col, 1);
+						$values[]	=	$value;
+					}
+					else if (is_numeric($value)) {
+						$cols[]		=	$col;
+						$values[]	=	$value;
+					}
+					else if ($value === null) {
+						$cols[]		=	$col;
+						$values[]	=	'NULL';
+					}
+					else if (is_string($value)) {
+						$cols[]		=	$col;
+						$values[]	=	$this->returnEscaped($value);
+					}
+					else {
+						throw new \Exception('Invalid type `' . gettype($value) . '` sent to ' . __METHOD__ . '(); only numeric, string and null values are supported!');
+					}
+				}
+				$args = $cols;
+			}
+			else {
+				foreach ($args as $col) {
+					if ($col[0] === '@') {	//	strip '@' from beginning of all columns
+						$args[key($args)] = substr($col, 1);
+					}
+				}
+			}
+		}
+		else if (count($args) === 2 && is_array($args[0]))
+		{
+			if ( ! is_array($args[1])) {
+				throw new \Exception('Both first and second parameter of ' . __METHOD__ . ' must be arrays; type: ' . gettype($args[1]) . ' given for the second argument');
+			}
+			else if (count($args[0]) !== count($args[1])) {
+				throw new \Exception('Mismatching count of columns and values: count($columns) = ' . count($args[0]) . ' && count($values) = ' . count($args[1]));
+			}
+			$cols	=	$args[0];
+			$values	=	$args[1];
+			foreach ($cols as $index => $col)
+			{
+				if ($col[0] === '@') {
+					$cols[$index]	=	substr($col, 1);
+				//	$values[$index]	=	$value[$index];		//	unchanged
+				}
+				else {
+					$value = $values[$index];
+					if (is_numeric($value)) {
+					//	$cols[$index]	=	$col;			//	unchanged
+					//	$values[$index]	=	$value[$index];	//	unchanged
+					}
+					else if ($value === null) {
+					//	$cols[$index]	=	$col;			//	unchanged
+						$values[$index]	=	'NULL';
+					}
+					else if (is_string($value)) {
+					//	$cols[$index]	=	$col;			//	unchanged
+						$values[$index]	=	$this->returnEscaped($value);
+					}
+					else {
+						throw new \Exception('Invalid type `' . gettype($value) . '` sent to ' . __METHOD__ . '(); only numeric, string and null values are supported!');
+					}
+				}
+			}
+			$args = $cols;
+		}
+		$this->sql .= 'INTO ' . $tbl_name .
+						' PARTITION (' . (is_array($partitions) ? implode(', ', $partitions) : $partitions) . ')' .
+						( ! empty($args)	?	' (' . implode(', ', $args) . ')' : null) .
+						( ! empty($values)	?	' VALUES (' . implode(', ', $values) . ')' : null);
+		return $this;
+	}
+
+	/**
+	 *	Samples:
+	 *	https://dev.mysql.com/doc/refman/5.7/en/insert.html
+	 *		INSERT [LOW_PRIORITY | DELAYED | HIGH_PRIORITY] [IGNORE] [INTO] tbl_name [PARTITION (partition_name,...)] [(col_name,...)]  {VALUES | VALUE} ({expr | DEFAULT},...),(...),...
+	 *
+	 *
+	 */
+	public function PARTITION(...$args)
+	{
+		$this->sql .= ' PARTITION (' . implode(', ', $args) . ')';
+		return $this;
+	}
+
+
+	/**
+	 *	Samples:
+	 *	https://dev.mysql.com/doc/refman/5.7/en/insert.html
+	 *		INSERT [LOW_PRIORITY | DELAYED | HIGH_PRIORITY] [IGNORE] [INTO] tbl_name [PARTITION (partition_name,...)] [(col_name,...)]  {VALUES | VALUE} ({expr | DEFAULT},...),(...),...
+	 *
+	 *
+	 *	ANY $key/$index value starting with '@' will cause the value to NOT be escaped!
+	 *	eg. VALUES(['value1', '@' => 'UNIX_TIMESTAMP()', '@1' => 'MAX(table)', '@2' => 'DEFAULT', '@3' => 'NULL'])
+	 */
 	public function VALUES(...$args)
 	{
 		$values = '';
 		$comma = null;
-		foreach ($args as $arg) {
+		if (count($args) === 1 && is_array($args[0])) {
+			$args = $args[0];
+		}
+		foreach ($args as $col => $arg) {
 			if (is_numeric($arg)) {
 				$values .= $comma . $arg;
 			}
@@ -158,8 +418,12 @@ class SQL
 				$values .= $comma . 'NULL';
 			}
 			else if (is_string($arg)) {
-			//	$this->sql .= $comma . '"' . $arg . '"';		//	TODO: Need to escape this!
-				$values .= $comma . $this->escape($arg);
+				if (is_string($col) && $col[0] === '@') {
+					$values .= $comma . $arg;
+				}
+				else {
+					$values .= $comma . $this->returnEscaped($arg);
+				}
 			}
 			else {
 				throw new \Exception('Invalid type `' . gettype($arg) . '` sent to VALUES(); only numeric, string and null are supported!');
@@ -189,7 +453,7 @@ class SQL
 		{
 			foreach ($args[0] as $col => $value)
 			{
-				if ($col[0] === '@') {					//	detect first character of column title ... if the title has '@' sign, then DO NOT ESCAPE! ... can be useful for 'DEFAULT', or '@id' (a connection variable) etc.
+				if ($col[0] === '@') {					//	detect first character of column title ... if the title has '@' sign, then DO NOT ESCAPE! ... can be useful for 'DEFAULT', or '@id' or 'MD5(...)' etc. (a connection variable) etc.
 					$values .= $comma . substr($col, 1) . ' = ' . $value;		//	strip '@' from beginning
 				}
 				else {
@@ -229,22 +493,27 @@ class SQL
 			{
 				if ($col === null) {
 					$col = $arg;
-					if (empty($col) || is_numeric($col))	//	basic validation ... something is wrong ...
+					if (empty($col) || is_numeric($col))	//	basic validation ... something is wrong ... can't have a column title be empty or numeric!
 						throw new \Exception('Invalid column name detected in SET(), column names must be strings! Type: `' . gettype($col) . '`, value: ' . (string) $col);
 					continue;
 				}
 
-				if (is_numeric($arg)) {
-					$values .= $comma . $col . ' = ' . $arg;
-				}
-				else if ($arg === null) {
-					$values .= $comma . $col . ' = NULL';
-				}
-				else if (is_string($arg)) {
-					$values .= $comma . $col . ' = ' . $this->escape($arg);
+				if ($col[0] === '@') {					//	detect first character of column title ... if the title has '@' sign, then DO NOT ESCAPE! ... can be useful for 'DEFAULT', or '@id' (a connection variable) or 'MD5(...)' etc.
+					$values .= $comma . substr($col, 1) . ' = ' . $value;		//	strip '@' from beginning
 				}
 				else {
-					throw new \Exception('Invalid type `' . gettype($arg) . '` sent to SET(); only numeric, string and null are supported!');
+					if (is_numeric($arg)) {
+						$values .= $comma . $col . ' = ' . $arg;
+					}
+					else if ($arg === null) {
+						$values .= $comma . $col . ' = NULL';
+					}
+					else if (is_string($arg)) {
+						$values .= $comma . $col . ' = ' . $this->escape($arg);
+					}
+					else {
+						throw new \Exception('Invalid type `' . gettype($arg) . '` sent to SET(); only numeric, string and null are supported!');
+					}
 				}
 				$comma = ', ';
 				$col = null;
@@ -254,38 +523,11 @@ class SQL
 		return $this;
 	}
 
-	/**
-	 *	Only supports 1 partition
-	 *
-	 *	Samples:
-	 *	https://dev.mysql.com/doc/refman/5.7/en/insert.html
-	 *		INSERT [LOW_PRIORITY | DELAYED | HIGH_PRIORITY] [IGNORE] [INTO] tbl_name [PARTITION (partition_name,...)] [(col_name,...)]  {VALUES | VALUE} ({expr | DEFAULT},...),(...),...
-	 *
-	 *
-	 */
-	public function INTO_PARTITION($tbl_name, $partition, ...$args)
-	{
-		$this->sql .= PHP_EOL . "\tINTO " . $tbl_name . ' PARTITION (' . $partition . ') (' . implode(', ', $args) . ')';
-		return $this;
-	}
 
 	//	FROM thetable t, (SELECT @a:=NULL) as init;
 	public function FROM(...$args)
 	{
 		$this->sql .= PHP_EOL . 'FROM ' . implode(', ', $args);
-		return $this;
-	}
-
-	/**
-	 *	Samples:
-	 *	https://dev.mysql.com/doc/refman/5.7/en/insert.html
-	 *		INSERT [LOW_PRIORITY | DELAYED | HIGH_PRIORITY] [IGNORE] [INTO] tbl_name [PARTITION (partition_name,...)] [(col_name,...)]  {VALUES | VALUE} ({expr | DEFAULT},...),(...),...
-	 *
-	 *
-	 */
-	public function PARTITION(...$args)
-	{
-		$this->sql .= PHP_EOL . 'PARTITION (' . implode(', ', $args) . ')';
 		return $this;
 	}
 
@@ -567,6 +809,23 @@ class SQL
 	}
 
 	/**
+	 *	
+	 *	
+	 *	Example:
+	 *		.SUM('price')
+	 *
+	 *	Samples:
+	 *		DELETE FROM t WHERE i IN(1,2);
+	 *		
+	 *		
+	 */
+	public function IN(...$args)
+	{
+		$this->sql .= ' IN (' . implode(null, $args) . ')';
+		return $this;
+	}
+
+	/**
 	 *	2 Styles! If only 2x parameters are specified, then we skip adding the field before!
 	 *		$arg1 . ' BETWEEN ' . $arg2 . ' AND ' . $arg3
 	 *		' BETWEEN ' . $arg1 . ' AND ' . $arg2
@@ -619,7 +878,7 @@ class SQL
 	 */
 	public function UNION(...$args)
 	{
-		$this->sql .= ' UNION ' . implode('', $args);
+		$this->sql .= ' UNION ' . implode(null, $args);
 		return $this;
 	}
 
@@ -718,6 +977,22 @@ class SQL
 
 	/**
 	 *	
+	 *
+	 *	Example:
+	 *		.bind()
+	 *
+	 *	Samples:
+	 *		WHERE book.ID >= :p1 AND book.ID <= :p2)'; // :p1 => 123, :p2 => 456		WHERE book.AUTHOR_ID IN (:p1, :p2)'; // :p1 => 123, :p2 => 456
+	 */
+	public function bind(...$args)				//	http://php.net/manual/en/function.sprintf.php
+	{
+		throw new \Exception('TODO: bind() parameters with ?');
+		$this->sql .= sprintf(...$args);		//	TODO: Detect `?` and parse the string first ???
+		return $this;
+	}
+
+	/**
+	 *	
 	 *		http://php.net/manual/en/function.explode.php
 	 *
 	 *	Example:
@@ -801,9 +1076,9 @@ class SQL
 										'CACHE'			=>	'SQL_CACHE ',			//	https://dev.mysql.com/doc/refman/5.7/en/select.html		The SQL_CACHE and SQL_NO_CACHE modifiers affect caching of query results in the query cache (see Section 8.10.3, “The MySQL Query Cache”). SQL_CACHE tells MySQL to store the result in the query cache if it is cacheable and the value of the query_cache_type system variable is 2 or DEMAND. With SQL_NO_CACHE, the server does not use the query cache. It neither checks the query cache to see whether the result is already cached, nor does it cache the query result.
 										'NO_CACHE'		=>	'SQL_NO_CACHE ',		//	https://dev.mysql.com/doc/refman/5.7/en/select.html		The SQL_CACHE and SQL_NO_CACHE modifiers affect caching of query results in the query cache (see Section 8.10.3, “The MySQL Query Cache”). SQL_CACHE tells MySQL to store the result in the query cache if it is cacheable and the value of the query_cache_type system variable is 2 or DEMAND. With SQL_NO_CACHE, the server does not use the query cache. It neither checks the query cache to see whether the result is already cached, nor does it cache the query result.
 										'CALC'			=>	'SQL_CALC_FOUND_ROWS ',	//	https://dev.mysql.com/doc/refman/5.7/en/select.html		SQL_CALC_FOUND_ROWS tells MySQL to calculate how many rows there would be in the result set, disregarding any LIMIT clause. The number of rows can then be retrieved with SELECT FOUND_ROWS(). See Section 12.14, “Information Functions”.
+										'SQL_CALC_FOUND_ROWS'=>	'SQL_CALC_FOUND_ROWS ',	//	https://dev.mysql.com/doc/refman/5.7/en/select.html	SQL_CALC_FOUND_ROWS tells MySQL to calculate how many rows there would be in the result set, disregarding any LIMIT clause. The number of rows can then be retrieved with SELECT FOUND_ROWS(). See Section 12.14, “Information Functions”.
 
 										'DELAYED'		=>	'DELAYED ',				//	https://dev.mysql.com/doc/refman/5.7/en/insert.html		INSERT [LOW_PRIORITY | DELAYED | HIGH_PRIORITY] [IGNORE] [INTO] tbl_name
-										'INTO'		=>	'DELAYED ',				//	https://dev.mysql.com/doc/refman/5.7/en/insert.html		INSERT [LOW_PRIORITY | DELAYED | HIGH_PRIORITY] [IGNORE] [INTO] tbl_name
 
 										'LOW_PRIORITY'	=>	'LOW_PRIORITY ',		//	https://dev.mysql.com/doc/refman/5.7/en/delete.html		DELETE [LOW_PRIORITY] [QUICK] [IGNORE] FROM tbl_name		INSERT [LOW_PRIORITY | DELAYED | HIGH_PRIORITY] [IGNORE]
 										'LOW'			=>	'LOW_PRIORITY ',		//	https://dev.mysql.com/doc/refman/5.7/en/delete.html		DELETE [LOW_PRIORITY] [QUICK] [IGNORE] FROM tbl_name
@@ -815,11 +1090,14 @@ class SQL
 
 										'COUNT_ALL'		=>	'COUNT(*)',
 										'COUNT'			=>	'COUNT',
+										'LAST_INSERT_ID'=>	'LAST_INSERT_ID()',		//	SELECT LAST_INSERT_ID();	UPDATE sequence SET id=LAST_INSERT_ID(id+1);
+										'ROW_COUNT'		=>	'ROW_COUNT()',			//	https://dev.mysql.com/doc/refman/5.7/en/information-functions.html#function_row-count		SELECT ROW_COUNT();
 										'A'				=>	'*',					//	`ALL` is a SELECT modifier ... gonna change its meaning!
 										'STAR'			=>	'*',
 										'CA'			=>	'COUNT(*)',
-										'C'				=>	'COUNT',							//	COUNT or COMMA ???
+										'C'				=>	'COUNT',				//	COUNT or COMMA or CLOSE  ???
 									//	'C'				=>	', ',
+									//	'C'				=>	')',
 
 										'FROM'			=>	PHP_EOL . 'FROM ',
 										'JOIN'			=>	PHP_EOL . 'JOIN ',
@@ -849,12 +1127,13 @@ class SQL
 										'ASC'			=>	' ASC',
 										'IN'			=>	' IN ',
 										'NOT_IN'		=>	' NOT IN ',
-										'NOT'			=>	' NOT ',
+										'NOT'			=>	' NOT',
+										'NULL'			=>	' NULL',
 										'CHARACTER_SET'	=>	' CHARACTER SET ',					//	[INTO OUTFILE 'file_name' [CHARACTER SET charset_name]
 										'INTO_DUMPFILE'	=>	' INTO DUMPFILE ',					//	[INTO OUTFILE 'file_name' [CHARACTER SET charset_name] export_options | INTO DUMPFILE 'file_name'
 										'DUMPFILE'		=>	'DUMPFILE ',						//	[INTO OUTFILE 'file_name' [CHARACTER SET charset_name] export_options | INTO DUMPFILE 'file_name'
 																								//	INSERT [LOW_PRIORITY | DELAYED | HIGH_PRIORITY] [IGNORE] [INTO] tbl_name
-										'INTO'			=>	PHP_EOL . 'INTO ',					//	[INTO OUTFILE 'file_name' [CHARACTER SET charset_name] export_options | INTO DUMPFILE 'file_name' | INTO var_name [, var_name]]
+										'INTO'			=>	'INTO ',							//	[INTO OUTFILE 'file_name' [CHARACTER SET charset_name] export_options | INTO DUMPFILE 'file_name' | INTO var_name [, var_name]]
 										'OFFSET'		=>	' OFFSET ',							//	[LIMIT {[offset,] row_count | row_count OFFSET offset}]
 
 										//	These can only come at the end of a SELECT, not sure if they can be used in other statements?
@@ -866,29 +1145,40 @@ class SQL
 
 										'AUTO_INCREMENT'=>	' AUTO_INCREMENT',					//	CREATE TABLE test (a INT NOT NULL AUTO_INCREMENT, PRIMARY KEY (a), KEY(b))
 										'INT'			=>	' INT',								//	CREATE TABLE test (a INT NOT NULL AUTO_INCREMENT, PRIMARY KEY (a), KEY(b))
-										'PK'			=>	' PRIMARY KEY',						//	CREATE TABLE test (a INT NOT NULL AUTO_INCREMENT, PRIMARY KEY (a), KEY(b))
-										'PRIMARY_KEY'	=>	' PRIMARY KEY',						//	CREATE TABLE test (a INT NOT NULL AUTO_INCREMENT, PRIMARY KEY (a), KEY(b))
-									//	'PRIMARY'		=>	' PRIMARY ',						//	CREATE TABLE test (a INT NOT NULL AUTO_INCREMENT, PRIMARY KEY (a), KEY(b))	//	needs work ...
-									//	'KEY'			=>	' KEY ',							//	CREATE TABLE test (a INT NOT NULL AUTO_INCREMENT, PRIMARY KEY (a), KEY(b))
+										'PK'			=>	'PRIMARY KEY ',						//	CREATE TABLE test (a INT NOT NULL AUTO_INCREMENT, PRIMARY KEY (a), KEY(b))
+										'PRIMARY_KEY'	=>	'PRIMARY KEY ',						//	CREATE TABLE test (a INT NOT NULL AUTO_INCREMENT, PRIMARY KEY (a), KEY(b))
+										'UNIQUE_KEY'	=>	'UNIQUE KEY ',						//	CREATE TABLE `t` `id` INT(11) NOT NULL AUTO_INCREMENT, `val` INT(11) DEFAULT NULL, PRIMARY KEY (`id`), UNIQUE KEY `i1` (`val`)
+									//	'PRIMARY'		=>	'PRIMARY ',							//	CREATE TABLE test (a INT NOT NULL AUTO_INCREMENT, PRIMARY KEY (a), KEY(b))	//	needs work ...
+									//	'KEY'			=>	'KEY ',								//	CREATE TABLE test (a INT NOT NULL AUTO_INCREMENT, PRIMARY KEY (a), KEY(b))
 										'ENGINE'		=>	PHP_EOL . 'ENGINE',					//	CREATE TABLE test (a INT NOT NULL AUTO_INCREMENT, PRIMARY KEY (a), KEY(b)) ENGINE=MyISAM SELECT b,c FROM test2;
 
+										'IF'			=>	' IF ',
+										'SET'			=>	' SET ',
 										'COMMA'			=>	', ',
+										'c_'			=>	', ',	//	currently the only lower case, case ... how else do we get a comma???
 										'_'				=>	', ',	//	space or comma?
 										'__'			=>	', ',	//	space or comma?
 										'Q'				=>	'"',
 										'SPACE'			=>	' ',
-										'_O'			=>	'(',	//	OP	?
-										'C_'			=>	')',	//	CL	?
+										'_O'			=>	'(',	//	OP	? || O
+										'C_'			=>	')',	//	CL	? || C
 										'OPEN'			=>	'(',
 										'CLOSE'			=>	')',
+										'TAB'			=>	"\t",
+										'NL'			=>	"\n",
+										'CR'			=>	"\r",
 										'EOL'			=>	PHP_EOL,
 										'BR'			=>	PHP_EOL,
 										'EQ'			=>	' = ',
+										'NEQ'			=>	' != ',
+										'NOTEQ'			=>	' != ',
+										'NOT_EQ'		=>	' != ',
 										'GT'			=>	' > ',
 										'LT'			=>	' < ',
 										'AS'			=>	' AS ',
 										'ON'			=>	' ON ',
 										'AND'			=>	' AND ',
+										'OR'			=>	' OR ',
 										'BETWEEN'		=>	' BETWEEN ',
 
 										'OUT'			=>	'OUT ',								//	https://dev.mysql.com/doc/refman/5.7/en/call.html		CREATE PROCEDURE p (OUT ver_param VARCHAR(25), INOUT incr_param INT)
@@ -954,13 +1244,14 @@ class SQL
 			default:
 
 				if (isset($translations[$name])) {
-					
+					$this->sql .= $translations[$name];
 				}
 				else if (str_replace($lower_under, null, $name) === '') {
+					//	string contains ALL lowercase values and underscores ... ie. probably a table/field/column name! Leave unchanged!
 					$this->sql .= $name;
 				}
 				else {
-					$this->sql .= ' ' . $name . ' ';
+					$this->sql .= ' ' . $name . ' '; // `unknown`
 				}
 		}
 		return $this;
@@ -972,6 +1263,17 @@ class SQL
 	 *	$sql = SQL()->ORDER_BY->price->DESC->();		//	'ORDER BY price DESC'
 	 */
 	public function __invoke(...$args)
+	{
+die('__invoke');
+		return $this->sql;
+	}
+
+	/**
+	 *	$sql = SQL()->();
+	 *	$sql = SQL()->SELECT->STAR->FROM->users->();	//	'SELECT * FROM users'
+	 *	$sql = SQL()->ORDER_BY->price->DESC->_();		//	'ORDER BY price DESC'
+	 */
+	public function _(...$args)
 	{
 		switch ($this->context)
 		{
@@ -992,6 +1294,8 @@ class SQL
 		return $this->sql;
 	}
 
+
+
 	public static function setBuilderLocation($queries)
 	{
 		self::$queries = $queries;
@@ -1005,9 +1309,19 @@ class SQL
 	 *	$replace = array('\0', '\n', '\r', '\Z' , '\t');
 	 *	str_replace($search, $replace, $Data )		Taken from: http://php.net/manual/en/function.addslashes.php#56848
 	 */
-	public static function setConn($conn)
+	public static function setConn($conn = null)
 	{
 		self::$conn = $conn;
+	}
+
+	/**
+	 *	Use for testing purposes only!
+	 *	Creates a dummy anonymous `connection` class, which implements real_escape_string() which uses addslashes()
+	 */
+	public static function setDummyConn()
+	{
+		//	configure dummy conn for real_escape_string!
+		self::$conn = new class { function real_escape_string($str) { return addslashes($str); } };
 	}
 
 
@@ -1029,6 +1343,30 @@ class SQL
 	{
 		return preg_replace('/[\x{10000}-\x{10FFFF}]/u', "\xEF\xBF\xBD", $str);
 	}	// addcslashes with: "\\\000\n\r'\"\032%_"	http://www.aichengxu.com/mysql/3944424.htm ... still doesn't protect against multi-byte attacks ...
+
+	public function e(string $value)													//	pick your poison! e() || esc() || escape()
+	{
+		if (is_string($value)) {
+			$this->sql .= '"' . self::$conn->real_escape_string(self::utf8($value)) . '"';
+		}
+		else if (is_numeric($value)) {
+			$this->sql .= $value;
+		}
+		else if (is_null($value)) {
+			$this->sql .= 'NULL';
+		}
+		else {
+			foreach ($value as $key => &$v)
+				$v = $this->sanitize($v);	//	experimental ???
+			$this->sql .= '(' . $value . ')';
+		}
+		return $this;
+	}
+	public function esc(string $value)
+	{
+		$this->sql .= '"' . self::$conn->real_escape_string(self::utf8($value)) . '"';
+		return $this;
+	}
 	public function escape(string $value)
 	{
 		$this->sql .= '"' . self::$conn->real_escape_string(self::utf8($value)) . '"';
@@ -1043,6 +1381,16 @@ class SQL
 		return empty($str) ? $empty : $str;
 	}
 
+	public function escapeString(string $value)
+	{
+		return '"' . self::$conn->real_escape_string(self::utf8($value)) . '"';
+	}
+
+	public function returnEscaped(string $value)
+	{
+		return '"' . self::$conn->real_escape_string(self::utf8($value)) . '"';
+	}
+
 	/**
 	 *	Used when we detect ? ...
 	 *
@@ -1050,10 +1398,10 @@ class SQL
 	public function sanitize($value)
 	{
 		if (is_numeric($value)) return $value;
-		if (is_string($value)) return $this->real_escape_string(self::utf8($value)) . '"';
+		if (is_string($value)) return '"' . self::$conn->real_escape_string(self::utf8($value)) . '"';
 		if (is_null($value)) return 'NULL';
 		foreach ($value as $key => &$v)
-			$v = $this->escape($v);
+			$v = $this->sanitize($v);
 		return '(' . implode(', ', $value) . ')';
 	}
 
