@@ -199,7 +199,7 @@ class Request
 			{
 				$class = substr($controller, 0, $pos);
 				$method = substr($controller, $pos + 2);
-				require __DIR__ . '/../controllers/' . $class . '.php';
+			//	require __DIR__ . '/../controllers/' . $class . '.php';
 				$reflection = new \ReflectionMethod($class, $method);
 				return $reflection->invokeArgs(null, $this->_get_args_from_params($reflection->getParameters()));
 			}
@@ -207,7 +207,7 @@ class Request
 			{
 				$class = substr($controller, 0, $pos);
 				$method = substr($controller, $pos + 2);
-				require __DIR__ . '/../controllers/' . $class . '.php';
+			//	require __DIR__ . '/../controllers/' . $class . '.php';
 				$reflection = new \ReflectionMethod($class, $method);
 				$obj = new $class($this->container);
 				return $reflection->invokeArgs($obj, $this->_get_args_from_params($reflection->getParameters()));

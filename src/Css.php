@@ -16,6 +16,12 @@ class Css
 	 */
 	static function duo($config, $theme, $tint, &$public_master_file, &$public_theme_file)
 	{
+		static $conf    =	null;
+		if ($config === null)
+			$config = $conf;
+		else
+			$conf = $config;
+
 		$max_mtime      =	0;
 		$masterfiles    =	[];
 		$themefiles     =	[];
