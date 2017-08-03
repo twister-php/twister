@@ -4,7 +4,217 @@ namespace Twister;
 
 class Css
 {
-	static function duo($masterfile, $palette = null, $tint = null, array $overrides = null)
+	/**
+	 *	Generate Css `duo` of master css file, as well as `themed` file
+	 *
+	 *	@param  array       $config Array of configuration properties, such as list of css files
+	 *	@param  string|null $theme Non-default color theme name eg. 'gunmetal'
+	 *	@param  array|null  $tint Additional `tinting` to be applied to the theme, such as alternative title colors
+	 *	@param  string      $masterfile Variable to receive the `master filename`
+	 *	@param  string      $themefile Variable to receive the `theme filename`
+	 *	@return void
+	 */
+	static function duo($config, $theme, $tint, &$public_master_file, &$public_theme_file)
+	{
+		$max_mtime      =	0;
+		$masterfiles    =	[];
+		$themefiles     =	[];
+		$basepath       =	$config['basepath'];
+		$cachepath      =	$config['cachepath'];
+
+		$global_md5     =	md5(serialize($config['global']));
+
+		$palette		=	is_array($tint)	?	(is_string($theme) ? array_merge(reset($config['themes']), $config['themes'][$theme], $tint) : array_merge(reset($config['themes']), $tint))
+											:	(is_string($theme) ? array_merge(reset($config['themes']), $config['themes'][$theme]) : reset($config['themes']));
+		$palette_md5    =	md5(serialize($palette));
+
+		foreach ($config['files'] as $file)
+		{
+			$mtime          =	filemtime($basepath . $file);
+			$max_mtime      =	max($max_mtime, $mtime);
+			$filename       =	pathinfo($file, PATHINFO_FILENAME);
+			$masterfiles[]  =	$cachepath . $filename . '-' . $mtime . '-' . $global_md5 . '.css';
+			$themefiles[]   =	$cachepath . $filename . '-' . $mtime . '-' . $palette_md5 . '.css';
+		}
+
+		$public_master_file     =	$config['publicpath'] . 'duo-' . $max_mtime . '-' . md5(serialize($masterfiles)) . '.css';
+		$public_theme_file      =	$config['publicpath'] . 'duo-' . $max_mtime . '-' . md5(serialize($themefiles)) . '.css';
+
+		if ( ! file_exists($public_theme_file) || ! file_exists($public_master_file))
+		{
+			$global             =	$config['global'];
+			$global_keys        =	array_keys($global);
+			$palette_keys_md5   =	md5(serialize(array_keys($palette)));
+			$public_master_css  =	null;
+			$public_theme_css   =	null;
+			foreach ($config['files'] as $index => $file)
+			{
+				/**
+				 *	There are 3 files:
+				 *		1)	The `main/master` file, with static/non-template values
+				 *		2)	The `intermediary` file, which contains ALL key/value properties with the pre-replaced CONSTANTS, this is used by ALL themes when replacing values
+				 *		3)	The `template` file, which is where we replace all the CONSTANTS from the intermediary file
+				 *
+				 *	To build the files, we do the following:
+				 *		1)	We get the base file CSS into $css variable
+				 *			We minify the original CSS to remove comments and whitespace
+				 *			We replace the global/static/common styles, like `MEDIA-SMALL`
+				 *				This is very important, because duo has problems with @media sections
+				 *				because they have inner styles ... we could solve this,
+				 *					but it's more pain than it's worth, and we don't have any need yet!
+				 *					The other issue is that we actually have @media selectors that include CONSTANTS
+				 *			Then we extract all the selectors that contain themeable CONSTANTS
+				 *				eg. a{color:LINK-COLOR;font-size:12px;}
+				 *			We remove all themeable CONSTANTS and their entire line from the $css content,
+				 *				eg. 'color:LINK-COLOR'
+				 *				by doing this, we are creating the final `master` file, which does not inlude any themeable CONSTANTS
+				 *		2)	We then use these lines and create a new selector and CONSTANTS for the themeable 'intermediate' file.
+				 *				eg. $selector . '{' . implode(';', $values) . '}'
+				 *		1)	We use the remaining content in $css and write the final 'master' file.
+				 *		3)	Then using the 'intermediate' file, we replace all the themeable CONSTANTS with their values and write the theme file.
+				 */
+				$intermediary_file      =	$cachepath . pathinfo($masterfiles[$index], PATHINFO_FILENAME) . '-' . $palette_keys_md5 . '.css';
+
+				$intermediary_contents  =	file_exists($intermediary_file)   ? file_get_contents($intermediary_file)   : false;
+				$master_contents        =	file_exists($masterfiles[$index]) ? file_get_contents($masterfiles[$index]) : false;
+				$theme_contents         =	file_exists($themefiles[$index])  ? file_get_contents($themefiles[$index])  : false;
+
+				if ($intermediary_contents === false || $master_contents === false)
+				{
+					//	We need to minify FIRST, because there might be some comments with styles! eg. border: BORDER /* BORDER-OLD */; But there might be other cases that screw up the regular expressions!
+					$css    =	self::minify(file_get_contents($basepath . $file));
+
+					/**
+					 *	First replace all the `global` (common/static) styles
+					 *	So `master` files can still be styled with these.
+					 *	This is very important for `@media` sections, which cannot be styled with a theme.
+					 *	The reason `@media` sections can't be styled, is because I can't extract them properly!
+					 *	Because they contain inner styles, and my [^{}] regex fails
+					 */
+					$css = str_replace($global_keys, $global, $css);
+
+					/**
+					 *	Check `@media` sections for any themeable styles (after replacing the globals above)
+					 *	@media sections can have styles from the 'global/common/static' list,
+					 *		but not the normal themeable styles.
+					 *	This section is just to make sure we have no styles in the '@media' sections!
+					 *	This is my alternative to actually fully supporting styling in @media sections!
+					 */
+					preg_match_all('~@media[^{;}]*{(?:[^{;}]*{[^{}]*})+}~', $css, $media_sections);
+					if ( ! empty($media_sections))
+					{
+						foreach ($media_sections as $media)
+						{
+							if ( ! empty($media))
+							{
+								preg_match('~[A-Z]+\-[A-Z-]+~', $media[0], $media_errors);
+								if ( ! empty($media_errors))
+								{
+									throw new \Exception("@media sections cannot include themeable styles; check: `{$media_errors[0]}` in file: `{$file}`");
+								}
+							}
+						}
+					}
+
+					/**
+					 *	Extract a list of CSS selectors that have themeable CONSTANTS inside
+					 *	[	0	=>	[	'a{color:LINK-COLOR;text-decoration:none}',
+					 *					'a:hover,a:focus{color:LINK-HOVER-COLOR;text-decoration:underline}',
+					 *					'.btn.danger:focus{color:BUTTON-DANGER-FOCUS-COLOR;background-color:BUTTON-DANGER-FOCUS-BG-COLOR}'
+					 *				],
+					 *		1	=>	[	'a',
+					 *					'a:hover,a:focus',				<==		These are officially called `selectors`
+					 *					'.btn.danger:focus'
+					 *				]
+					 *	]
+					 *	We use [0] to extract each rule with a separate preg below,
+					 *		because I can't get a list of CONSTANT + selector (because some selectors have multiple CONSTANTS),
+					 *		at least this way I'm ONLY searching the selectors that definately include template/theme constants
+					 */
+					preg_match_all('~([^{;}]+){[^{]*[A-Z]+\-[A-Z-]+[^}]*}~', $css, $extract);
+
+					/**
+					 *	Intermediary file is the most likely candidate for being here.
+					 *	Here we ignore if we actually loaded the contents of an intermediary file at the top,
+					 *		and rebuild the intermediary contents completely from scratch regardless.
+					 */
+					$intermediary_contents = null;
+
+					foreach ($extract[0] as $i => $rule)	//	$rule example: '.btn.danger:focus{color:BUTTON-DANGER-FOCUS-COLOR;background-color:BUTTON-DANGER-FOCUS-BG-COLOR}'
+					{
+						/**
+						 *	Splits the rule CONSTANTS
+						 *	[	0	=>	[	'color:BUTTON-COLOR;',
+						 *					'box-shadow:BUTTON-BOX-SHADOW'		<== note that some end with `;` and others don't!
+						 *				],
+						 *		1	=>	[	'color:BUTTON-COLOR',
+						 *					'box-shadow:BUTTON-BOX-SHADOW'		<==	NONE of these end with ';'
+						 *				]
+						 *	]
+						 */
+						preg_match_all('~([^;{]*?[A-Z]+\-[A-Z-]+[^};]*)\;?~', $rule, $values);
+						$intermediary_contents .= $extract[1][$i] . '{' . implode(';', $values[1]) . '}';	//	$values[1] excludes the `;`, so we can join with it! If this fails, then our preg_match_all() above is not getting the correct values!
+						//	remove each CONSTANT property from the $css, whatever is left in the $css value will become the `master` (because it include only static properties!)
+						if ($master_contents === false)
+						{
+							foreach ($values[0] as $v)
+							{
+								$css = str_replace($v, null, $css);
+							}
+						}
+					}
+					//	minify again, because we might have removed all the values from a rule, this will remove empty selectors!
+					$css = self::minify($css);
+					if ($master_contents === false)
+					{
+						$master_contents = $css;
+						file_put_contents($masterfiles[$index], $css);
+					}
+					file_put_contents($intermediary_file, $intermediary_contents);
+				}
+
+				if ($theme_contents === false)
+				{
+					$theme_contents = preg_replace_callback('~([A-Z]+-[A-Z-]+)~',
+						function ($matches) use ($palette, &$file)
+						{
+							if ( ! isset($palette[$matches[0]]))
+								throw new \Exception("Invalid css theme property: `{$matches[0]}` used in css file: `{$file}`. Check the palette array in your themes config file!");
+							return $palette[$matches[0]];
+						}, $intermediary_contents);
+					file_put_contents($themefiles[$index], $theme_contents);
+				}
+
+				$public_master_css .= $master_contents;
+				$public_theme_css .= $theme_contents;
+			}
+			if ( ! file_exists($public_master_file))
+			{
+				file_put_contents($public_master_file, $public_master_css);
+			}
+			//if ( ! file_exists($public_theme_file))
+			{
+				file_put_contents($public_theme_file, $public_theme_css);
+			}
+		}
+	}
+
+
+	/**
+	 *	Why do we need keys???
+	 *
+	 */
+	static function keys($config)
+	{
+
+	}
+
+
+	/**
+	 *	Old/original duo code
+	 *	main problem was all the hard coding of paths
+	 */
+	static function __duo($masterfile, $palette = null, $tint = null, array $overrides = null)
 	{
 		//	THEME vs. SCHEME vs. SKIN
 		//	Theme = light/dark! AKA `tint` in the current system ... ie. `What theme would you like?` asking the user to choose a color scheme!
@@ -304,6 +514,62 @@ END;
 ~
 END;
 
-		return preg_replace([$re1, $re2, $re3, $re4], ['$1', '$1$2$3$4$5$6$7', '$1$2$3$4$5$6$7$8', '$1$2$3$4$5$6$7$8$9'], $str);
+		$re5 = '~[^;\{\}]+\{\}~';	//	remove empty classes. Added on 3 Aug 2017 @ 12:17am
+
+		return preg_replace([$re1, $re2, $re3, $re4, $re5], ['$1', '$1$2$3$4$5$6$7', '$1$2$3$4$5$6$7$8', '$1$2$3$4$5$6$7$8$9', null], $str);
 	}
 }
+
+
+/**
+ *	Notes on matching the @media section, which includes several inner styles:
+ *
+ *	eg.
+ *	@media screen and (max-width: 767px) {
+ *		.table {
+ *			margin-bottom: 16px;
+ *			overflow-y: hidden;
+ *			overflow-x: auto;
+ *		}
+ *	}
+ *
+ *	This preg can match the whole outer @media section:
+ *	preg_match_all('~([^{;}]+){([^{}]|(?R))*}~', $css, $split);
+ *
+ *	It uses a `recursive` search with `(?R)`
+ *
+ *	However, I cannot seem to match `all @media sections` like this doesn't work:
+ *	'~(@media[^{;}]+){([^{}]|(?R))*}~'
+ *
+ *	The reason is, that the inner styles don't also start with @media, eg. @media { @media { ... } }
+ *
+ *	So I can't easily isolate `@media` from the rest,
+ *		which means I have to check if every style starts with `@media`
+ *		eg. strpos('@media', $str) === 0
+ *		this is not acceptable!
+ *
+ *	So basically, I don't support templating inside the `@media` sections!
+ *	And I also don't give any warnings about it!
+ *
+ *	IDEA: I can make a hard coded regex, that includes one or more inner {...} sections/rules?
+ *
+ *
+ *	UPDATE:
+ *
+ *	After thinking about the idea I had, I came up with this:
+ *	preg_match_all('~(?:\s*(@media)[^{;}]+{\s*(?:[^{;}]+\{[^{}]*\})*\s*})|(?:([^{;}]+){([^{}]+)})~', $css, $split);
+ *
+ *	It will separate the `@media` and normal rules, so that if ([1][$index] === '@media') then it's a @media section
+ *		if ([1][$index] !== '@media') then [2][$index] will have the (normal) rule selector eg. '.button:hover'
+ *		[3][$index] has the inner text of the normal rules
+ *
+ *
+ *	UPDATE 2:
+ *
+ *	Currently I use a different regex:
+ *
+ *	preg_match_all('~@media[^{;}]*{(?:[^{;}]*{[^{}]*})+}~', $css, $media_sections);
+ *
+ *	which extracts all the @media sections, and checks to make sure they have no inner custom styling/theme CONSTANTS.
+ *
+ */
