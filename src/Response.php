@@ -60,6 +60,11 @@ class Response
 			else if (isset($mixed['elements']))	$this->elements				=	array_merge($this->elements, $mixed['elements']);
 		}
 
+	//	assets::init(db::conn());
+
+	//	$LM->load_file('includes/lang/common.xml', $FW['locale']); // OR $FW['page']['lang'] ... also loaded in sitemap!
+	//	$DB->real_query('SET time_zone = "' . $LM->languages[$FW['locale']]['tz'] . '", lc_time_names = "' . $LM->languages[$FW['locale']]['tl'] . '"');
+
 		$path = $paths['elements'];
 
 		//
@@ -75,11 +80,16 @@ class Response
 		//		throw new \Exception('File `' . $filename . '` must return a callable function!');
 		}
 
-//			assets::preload(true);
+	//	assets::preload(true);
 
 	//	$AM->preload(true);
 	//	$LM->preload(true); // TODO: DEPRECATE THIS!!! ... WHY ? It's file based, not DB based! So loading them while the DB is open is bad!
-//			if (user::is_bot() === false)
+	//	if (user::is_bot() === false)
+
+		if (isset($_SESSION))
+			session_write_close();
+
+		$this->container->db->close();
 	}
 
 	/**
@@ -89,11 +99,6 @@ class Response
 	 */
 	function render()
 	{
-		if (isset($_SESSION))
-			session_write_close();
-
-		$this->container->db->close();
-
 		call_user_func($this->renderer);
 
 		echo PHP_EOL,
