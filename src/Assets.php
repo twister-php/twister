@@ -2,7 +2,7 @@
 
 namespace Twister;
 
-class Lang
+class Assets
 {
 
 }

@@ -10,7 +10,7 @@ use IteratorAggregate;
 use OutOfBoundsException;
 */
 
-class S implements Countable, IteratorAggregate, ArrayAccess
+class Str implements Countable, IteratorAggregate, ArrayAccess
 {
 	/**
 	 * An instance's string.
