@@ -51,10 +51,10 @@ class Entity
 	}
 
 
-	public function __call($method, $args)
+	public function __call($method, ...$args)
 	{
 		array_unshift($args, $this);
-		return call_user_func_array($this->properties[$method], $args);
+		return call_user_func($this->properties[$method], ...$args);
 	}
 	public function __invoke()
 	{
