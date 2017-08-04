@@ -6,13 +6,50 @@ class Session
 {
 	private static $_db = null;
 
-	function __construct(DB &$db)
+	function __construct(Db &$db)
 	{
 		session_set_save_handler('Session::open', 'Session::close', 'Session::read', 'Session::write', 'Session::destroy', 'Session::gc');
-		register_shutdown_function('session_write_close');
+//		register_shutdown_function('session_write_close');
 		session_set_cookie_params(0, '/', null, true, true);
 		self::$_db = $db;
 		session_start();
+	}
+
+	function __destruct()
+	{
+		session_write_close();
+	}
+
+	/**
+	 * Get member by id/index
+	 *
+	 * @param  string|int  $key
+	 * @return mixed
+	 */
+	public function __get($key)
+	{
+		return $_SESSION[$key];
+	}
+
+	/**
+	 * Set member by id/index
+	 *
+	 * @param  string|int  $key
+	 * @param  mixed       $value
+	 * @return void
+	 */
+	public function __set($key, $value)
+	{
+		$_SESSION[$key] = $value;
+	}
+
+	function __isset($key)
+	{
+		return isset($_SESSION[$key]);
+	}
+	function __unset($key)
+	{
+		unset($_SESSION[$key]);
 	}
 
 	static function open($sp, $sn)

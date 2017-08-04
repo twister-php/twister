@@ -40,9 +40,10 @@ class Response
 
 		$paths = $c->config['paths'];
 
-		//	Load layout/template specific default configuration
-		//(require __DIR__ . '/../layouts/' . $layout . '.php')($this); // requires Less!?!? WHY???
-		(require $paths['layouts'] . $layout . '.php')($this); // requires Less!?!? WHY???
+		//
+		//	Load layout
+		//
+		(require $paths['layouts'] . $layout . '.php')($this);
 
 		//	Load route specific page configuration
 		if (is_string($mixed))
@@ -68,7 +69,7 @@ class Response
 		$path = $paths['elements'];
 
 		//
-		//	Process Element Initialization
+		//	Execute Element Init
 		//
 		foreach ($this->elements as $element)
 		{

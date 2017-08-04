@@ -4,66 +4,89 @@ namespace Twister;
 
 class User
 {
+	private $container		=	null;
 	public	$id				=	0;
 	private $_properties	=	null;
 	private $_db			=	null;
-
 	private $_permissions	=	null;
 
-	function __construct(db &$db)
+	function __construct(Container &$c, $id = 0)
 	{
-		$this->_db = $db;
-		if (isset($_SESSION['id']))
+		$this->container = $c;
+		$this->_db = $c->db;
+
+		$this->id = $id;
+
+		if ($id)
 		{
-			$this->id = $_SESSION['id'];
-		//	$this->load_config();
-		//	$this->load_profile();
 			$this->load_permissions();
-		}
-	//	else
-	//		$this->id = false;
-//	TODO: This section needs work!
-		else if (/*request::$https && */ isset($_COOKIE['HTTPS_ONLY']))	//	NOTE: We should ALREADY be on request::$https!!! Because it's checked before user::init() is called!
-		{	//	We need to redirect to the user login page ... and stop there! ... actually ... we are just gonna clear the HTTPS_ONLY cookie, because the user.id is no longer valid!
-		//	redirect('/login?next=' . urlencode(env::canonical('https:')) . '&message=session-expired');	//	`URI request too long` ... basically it goes into an infinite loop!
-			setcookie('HTTPS_ONLY', null, -1, '/');
-			unset($_COOKIE['HTTPS_ONLY']);
-		//	env::https_redirect('/login?next=' . url_encode(...));	//	User session probably expired! maybe we should show a message in /login and unset the cookie there! Like `Your session has expired please login again!` or whatever!
 		}
 	}
 
-	private static function load_permissions()
+	/**
+	 * Get member by id/index
+	 *
+	 * @param  string|int  $key
+	 * @return mixed
+	 */
+	public function __get($key)
 	{
-		self::$_permissions = $this->_db->get_array(	'SELECT SQL_CACHE ' . // cached because these tables are less frequenty updated!
-														'g.alias as g_alias,' .
-														'p.alias as p_alias,' .
-														'acl.object_id' .
-													' FROM acl' .
-														' JOIN acl_permissions p ON p.id = acl.permission_id' .
-														' JOIN acl_groups g ON g.id = p.group_id' .
-													' WHERE acl.user_id = ' . $this->id .
-														' AND acl.disabled = 0',
-													array('g_alias', 'p_alias', 'object_id'), array('object_id'));
+		return $this->_properties[$key];
 	}
-	static function permission($group_alias, $permission_alias, $query_data = null, $object = 0)
+
+	/**
+	 * Set member by id/index
+	 *
+	 * @param  string|int  $key
+	 * @param  mixed       $value
+	 * @return void
+	 */
+	public function __set($key, $value)
+	{
+		$this->_properties[$key] = $value;
+	}
+
+	function __isset($key)
+	{
+		return isset($this->_properties[$key]);
+	}
+	function __unset($key)
+	{
+		unset($this->_properties[$key]);
+	}
+
+	private function load_permissions()
+	{
+		$this->_permissions = $this->_db->get_array(	'SELECT SQL_CACHE ' . // cached because these tables are less frequenty updated!
+															'g.alias as g_alias,' .
+															'p.alias as p_alias,' .
+															'acl.object_id' .
+														' FROM acl' .
+															' JOIN acl_permissions p ON p.id = acl.permission_id' .
+															' JOIN acl_groups g ON g.id = p.group_id' .
+														' WHERE acl.user_id = ' . $this->id .
+															' AND acl.disabled = 0',
+														['g_alias', 'p_alias', 'object_id'], ['object_id']);
+	}
+	function permission($group_alias, $permission_alias, $query_data = null, $object = 0)
 	{
 		if (!is_array($object))
 		{
-			if (isset(self::$_permissions[$group_alias][$permission_alias][$object])) return true;
+			if (isset($this->_permissions[$group_alias][$permission_alias][$object])) return true;
 		}
 		else // used when we want to specify default zero OR a value ... eg. array(0, 13);
-			foreach ($object as $obj) if (isset(self::$_permissions[$group_alias][$permission_alias][$obj])) return true;
-		if (isset(self::$_permissions['administrators']['super'])) return true; // super-admin bypass!
+			foreach ($object as $obj) if (isset($this->_permissions[$group_alias][$permission_alias][$obj])) return true;
+		if (isset($this->_permissions['administrators']['super'])) return true; // super-admin bypass!
 		if (isset($query_data))
 		{
-			if (is_string($query_data)) $query_data = array('next' => $query_data);
-			$query_data['warning'] = 'Protected Area! Login with relevant permissions required!';							//	<== TODO: Translate this!!! Or send a constant!
-			redirect('/login', $query_data);
+			if (is_string($query_data)) $query_data = ['next' => $query_data];
+			$query_data['warning'] = 'Protected Area! Login with relevant permissions required!';	//	<== TODO: Translate this!!! Or send a constant!
+			$this->container->request->redirect('/login', $query_data);
 		}
 		return false;
 	}
-	static function permissions($group_alias, $permission_alias)
+	function permissions($group_alias, $permission_alias)
 	{
-		return isset(self::$_permissions[$group_alias][$permission_alias]) ? array_keys(self::$_permissions[$group_alias][$permission_alias]) : array();
+		return isset($this->_permissions[$group_alias][$permission_alias]) ? array_keys($this->_permissions[$group_alias][$permission_alias]) : array();
 	}
 }
