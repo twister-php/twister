@@ -292,9 +292,9 @@ class Request
 	private function _get_args_from_params(array $params)
 	{
 		$byType	=	[	'twister\container'	=>	&$this->container,
-						'db'		=>	&$this->db,
-						'request'	=>	&$this,
-					//	'user'		=>	&$this->container->user
+						'twister\db'		=>	&$this->db,
+						'twister\user'		=>	&$this->container->user,
+						'twister\request'	=>	&$this
 					];
 		$args	=	[];
 		foreach ($params as $param)

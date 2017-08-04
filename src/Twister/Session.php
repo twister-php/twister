@@ -1,15 +1,14 @@
 <?php
 
 namespace Twister;
-dump('Starting session');
+
 class Session
 {
 	private static $_db = null;
 
 	function __construct(Db &$db)
 	{
-dump('Starting session for real');
-		session_set_save_handler('Session::open', 'Session::close', 'Session::read', 'Session::write', 'Session::destroy', 'Session::gc');
+		session_set_save_handler('Twister\Session::open', 'Twister\Session::close', 'Twister\Session::read', 'Twister\Session::write', 'Twister\Session::destroy', 'Twister\Session::gc');
 //		register_shutdown_function('session_write_close');
 		session_set_cookie_params(0, '/', null, true, true);
 		self::$_db = $db;

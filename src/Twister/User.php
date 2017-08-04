@@ -81,7 +81,7 @@ class User
 		{
 			if (is_string($query_data)) $query_data = ['next' => $query_data];
 			$query_data['warning'] = 'Protected Area! Login with relevant permissions required!';	//	<== TODO: Translate this!!! Or send a constant!
-			$this->container->request->redirect('/login', $query_data);
+			$this->container->request->redirect('/login?' . http_build_query($query_data));
 		}
 		return false;
 	}
