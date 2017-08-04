@@ -1,3 +1,5 @@
+
+
 17 July 2017:	@ 3:30am - I implemented the \ArrayAccess syntactic suggar to SQL, it's taking readability to the next level!
 
 16 July 2017:	On this day, I was on the MyBatis website reading documentation on their `Dynamic SQL` and `SQL Builder Class`;
