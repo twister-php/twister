@@ -100,7 +100,7 @@ class Response
 	 */
 	function render()
 	{
-		call_user_func($this->renderer);
+		call_user_func($this->renderer, $this->container);
 
 		echo PHP_EOL,
 			'<!--          memory_get_usage(): ', number_format(memory_get_usage()),			' -->', PHP_EOL,

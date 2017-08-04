@@ -394,18 +394,18 @@ class Request
 		if (is_string($parts))
 		{
 			if ($parts === '' || $parts === '//')
-				return $this->uri->withScheme(null); // '//' . $this->uri->authority . $this->uri->getPathAndQuery();
+				return $this->uri->withScheme(null);								//	'//' . $this->uri->authority . $this->uri->getPathAndQuery();
 			if ($parts[0] === '/')
-				return $this->uri->getLeftPart(Uri::PARTIAL_AUTHORITY) . $parts; //(_::is_https() ? 'https://' : 'http://') . _::request('host') . $parts;
+				return $this->uri->getLeftPart(Uri::PARTIAL_AUTHORITY) . $parts;	//	(_::is_https() ? 'https://' : 'http://') . _::request('host') . $parts;
 			if ($parts === 'https' || $parts === 'http')
-				return $this->uri->withScheme($parts); //$parts . '://' . _::request('host') . _::request('uri');
+				return $this->uri->withScheme($parts);								//	$parts . '://' . _::request('host') . _::request('uri');
 			if ($parts[0] === '?')
-				return $this->uri->getLeftPart(Uri::PARTIAL_PATH) . $parts; //(_::is_https() ? 'https://' : 'http://') . _::request('host') . _::request('path') . $parts;
+				return $this->uri->getLeftPart(Uri::PARTIAL_PATH) . $parts;			//	(_::is_https() ? 'https://' : 'http://') . _::request('host') . _::request('path') . $parts;
 			if (strpos($parts, '=') !== false)
-				return $this->uri->getLeftPart(Uri::PARTIAL_PATH) . '?' . $parts; // (_::is_https() ? 'https://' : 'http://') . _::request('host') . _::request('path') . '?' . $parts;
+				return $this->uri->getLeftPart(Uri::PARTIAL_PATH) . '?' . $parts;	//	(_::is_https() ? 'https://' : 'http://') . _::request('host') . _::request('path') . '?' . $parts;
 			if ($parts[0] === '#')
-				return $this->uri->withFragment($parts); // (_::is_https() ? 'https://' : 'http://') . _::request('host') . _::request('uri') . $parts;
-			die('Invalid call to Request::build_url("' . $parts . '")');
+				return $this->uri->withFragment($parts);							//	(_::is_https() ? 'https://' : 'http://') . _::request('host') . _::request('uri') . $parts;
+			throw new \Exception("Invalid call to Request::build_url('{$parts}')");
 		}
 		return (string) (new Uri($parts));
 /*
@@ -462,22 +462,22 @@ class Request
 			switch ($arg[0])
 			{
 				case '/':
-					$location = $arg;		//	$arg == '/path' || $arg == '//host/path'
+					$location = $arg;													//	$arg == '/path' || $arg == '//host/path'
 					break;
 				case 'h':
 					if ($arg === 'http' || $arg === 'https')
-						$location = (string) $this->uri->withScheme($arg); // '//' . $this->uri->authority . $this->uri->getPathAndQuery();
+						$location = (string) $this->uri->withScheme($arg);				//	'//' . $this->uri->authority . $this->uri->getPathAndQuery();
 					//	$location = $arg . '://' . _::request('host') . _::request('uri');
 					else
-						$location = $arg;	//	$arg == 'http://www.google.com/'
+						$location = $arg;												//	$arg == 'http://www.google.com/'
 					break;
 				case '?':
-					$location = $this->uri->getLeftPart(Uri::PARTIAL_PATH) . $parts; //(_::is_https() ? 'https://' : 'http://') . _::request('host') . _::request('path') . $parts;
+					$location = $this->uri->getLeftPart(Uri::PARTIAL_PATH) . $parts;	//	(_::is_https() ? 'https://' : 'http://') . _::request('host') . _::request('path') . $parts;
 					//$location = _::request('path') . $arg;
 					break;
 				case '&':	// append to query string
 					$location = $this->uri->getLeftPart(Uri::PARTIAL_QUERY);
-					$location .= (strpos($location, '?') === false ? '?' . substr($arg, 1) : $arg);
+					$location .= strpos($location, '?') === false ? '?' . substr($arg, 1) : $arg;
 				//	$location .= ($location->query === null ? '?' . substr($arg, 1) : $arg);	//	alternative using Uri object!
 					//$location = _::request('uri') . (empty(_::request('query')) ? '?' . substr($arg, 1) : $arg);
 					break;
@@ -612,8 +612,6 @@ class Request
 				die('Invalid value in request::redirect(): ' . print_r($args, true));
 		}
 
-die('redirecting to: <a href="' . $location . '">' . $location . '</a>');
-
 		// ob_get_length() will return "FALSE if no buffering is active." ... so all we want to know is if buffering IS active AND there was already data sent to the buffer ... then we need to die()!
 		if (ob_get_length()) die(ob_get_clean() . '<p><span style="color: red;">Errors on Redirect to: <a href="' . $location . '">' . $location . '</a></span></p>');
 		if ( ! headers_sent($filename, $linenum))
@@ -622,9 +620,7 @@ die('redirecting to: <a href="' . $location . '">' . $location . '</a>');
 			else echo '<p><span style="color: red"><b>ERROR: Empty location on redirect()!</b></span></p>';
 			exit;
 		}
-		die('<p><span style="color: red">ERROR:</span> <b>Headers already sent</b> in "' . $filename . '" on line <b>' . $linenum . '<br />' .
-			'Cannot redirect, please click the following link: <a href="' . $location . '">' . $location . '</a></p>');
+		throw new \Exception("<p><span style='color: red'>ERROR:</span> <b>Headers already sent</b> in `{$filename}` on line <b>`{$linenum}`<br />" .
+			"Cannot redirect, please click the following link: <a href='{$location}'>{$location}</a></p>");
 	}
-
-
 }
