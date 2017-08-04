@@ -275,6 +275,8 @@ class Container implements ArrayAccess
 			$value = $this->bindings[$key];
 			return is_callable($value) ? $value($this) : $value;	//	$value instanceof Closure
 		}
+		throw new \InvalidArgumentException("Undefined container property `\$c->{$key}`");
+		return null;
 
 		/**
 		 *	Examples of official PHP error messages when a property cannot be found

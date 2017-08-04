@@ -1772,20 +1772,13 @@ class Uri implements UriInterface
 
 						if ( ! ctype_lower($scheme))
 						{
-							throw new InvalidArgumentException(sprintf(
-										'Invalid Uri scheme string; received %s',
-										$value
-									));
+							throw new InvalidArgumentException("Invalid Uri scheme string; received {$value}");
 						}
 					}
 
 					if ( ! array_key_exists($scheme, self::$allowedSchemes) && ! empty($scheme))
 					{
-						throw new InvalidArgumentException(sprintf(
-									'Unsupported Uri scheme "%s"; must be an empty string or in the set (%s)',
-									$scheme,
-									implode(', ', array_keys(self::$allowedSchemes))
-								));
+						throw new InvalidArgumentException("Unsupported Uri scheme `{$scheme}`; must be an empty string or in the set (" . implode(', ', array_keys(self::$allowedSchemes)) . ')');
 					}
 
 					$this->_scheme = empty($scheme) ? null : $scheme;
@@ -1806,10 +1799,10 @@ class Uri implements UriInterface
 				}
 				else
 				{
-					throw new InvalidArgumentException(sprintf(
-								'Invalid Uri scheme string provided; expecting a string or null; received %s',
+					throw new InvalidArgumentException(
+								'Invalid Uri scheme string provided; expecting a string or null; received ' .
 								(is_object($value) ? get_class($value) : gettype($value))
-							));
+							);
 				}
 
 				return $value;
@@ -1846,10 +1839,10 @@ class Uri implements UriInterface
 				}
 				else
 				{
-					throw new InvalidArgumentException(sprintf(
-								'Invalid Uri host; expecting a string or null; received %s',
+					throw new InvalidArgumentException(
+								'Invalid Uri host; expecting a string or null; received ' .
 								(is_object($value) ? get_class($value) : gettype($value))
-							));
+							);
 				}
 
 				return $value;
@@ -1864,10 +1857,9 @@ class Uri implements UriInterface
 					{
 						if ($port < 1 || $port > 65535)
 						{
-							throw new InvalidArgumentException(sprintf(
-										'Invalid port "%d" specified; must be a valid TCP/UDP port',
-										$port
-									));
+							throw new InvalidArgumentException(
+										"Invalid port `{$port}` specified; must be a valid TCP/UDP port"
+									);
 						}
 					}
 					else
@@ -1893,10 +1885,10 @@ class Uri implements UriInterface
 				}
 				else
 				{
-					throw new InvalidArgumentException(sprintf(
-								'Invalid Uri port provided; expecting a numeric string, integer or null; received %s',
+					throw new InvalidArgumentException(
+								'Invalid Uri port provided; expecting a numeric string, integer or null; received ' .
 								(is_object($value) ? get_class($value) : (is_string($value) ? $value : 'value of type ' . gettype($value)))
-							));
+							);
 				}
 
 				return $value;
@@ -1941,10 +1933,10 @@ class Uri implements UriInterface
 				}
 				else
 				{
-					throw new InvalidArgumentException(sprintf(
-								'Invalid Uri path; expecting a string or null; received %s',
+					throw new InvalidArgumentException(
+								'Invalid Uri path; expecting a string or null; received ' .
 								(is_object($value) ? get_class($value) : gettype($value))
-							));
+							);
 				}
 
 				return $value;
@@ -1983,10 +1975,10 @@ class Uri implements UriInterface
 				}
 				else
 				{
-					throw new InvalidArgumentException(sprintf(
-								'Invalid Uri query string provided; expecting a string or null; received %s',
+					throw new InvalidArgumentException(
+								'Invalid Uri query string provided; expecting a string or null; received ' .
 								(is_object($value) ? get_class($value) : gettype($value))
-							));
+							);
 				}
 
 				return $value;
@@ -2017,10 +2009,10 @@ class Uri implements UriInterface
 				}
 				else
 				{
-					throw new InvalidArgumentException(sprintf(
-								'Invalid Uri fragment provided; expecting a string or null; received %s',
+					throw new InvalidArgumentException(
+								'Invalid Uri fragment provided; expecting a string or null; received ' .
 								(is_object($value) ? get_class($value) : gettype($value))
-							));
+							);
 				}
 
 				return $value;
@@ -2049,10 +2041,10 @@ class Uri implements UriInterface
 				}
 				else
 				{
-					throw new InvalidArgumentException(sprintf(
-								'Invalid username provided; expecting a string or null; received %s',
+					throw new InvalidArgumentException(
+								'Invalid username provided; expecting a string or null; received ' .
 								(is_object($value) ? get_class($value) : gettype($value))
-							));
+							);
 				}
 
 				return $value;
@@ -2081,10 +2073,10 @@ class Uri implements UriInterface
 				}
 				else
 				{
-					throw new InvalidArgumentException(sprintf(
-								'Invalid password provided; expecting a string or null; received %s',
+					throw new InvalidArgumentException(
+								'Invalid password provided; expecting a string or null; received ' .
 								(is_object($value) ? get_class($value) : gettype($value))
-							));
+							);
 				}
 
 				return $value;
@@ -2105,10 +2097,10 @@ class Uri implements UriInterface
 				}
 				else
 				{
-					throw new InvalidArgumentException(sprintf(
-								'Invalid segments provided; expecting an array or null; received %s',
+					throw new InvalidArgumentException(
+								'Invalid segments provided; expecting an array or null; received ' .
 								(is_object($value) ? get_class($value) : gettype($value))
-							));
+							);
 				}
 
 				return $value;
@@ -2129,10 +2121,10 @@ class Uri implements UriInterface
 				}
 				else
 				{
-					throw new InvalidArgumentException(sprintf(
-								'Invalid DNS segments; expecting an array or null; received %s',
+					throw new InvalidArgumentException(
+								'Invalid DNS segments; expecting an array or null; received ' .
 								(is_object($value) ? get_class($value) : gettype($value))
-							));
+							);
 				}
 
 				return $value;
@@ -2161,10 +2153,10 @@ class Uri implements UriInterface
 					}
 					else
 					{
-						throw new InvalidArgumentException(sprintf(
-									'Invalid authority; expecting a string with at most a single `@` sign or null; received %s',
+						throw new InvalidArgumentException(
+									'Invalid authority; expecting a string with at most a single `@` sign or null; received ' .
 									(is_object($value) ? get_class($value) : gettype($value))
-								));
+								);
 					}
 
 					// detect if optional port exists
@@ -2223,10 +2215,10 @@ class Uri implements UriInterface
 				}
 				else
 				{
-					throw new InvalidArgumentException(sprintf(
-								'Invalid authority provided; expecting a string or null; received %s',
+					throw new InvalidArgumentException(
+								'Invalid authority provided; expecting a string or null; received ' .
 								(is_object($value) ? get_class($value) : gettype($value))
-							));
+							);
 				}
 
 				return $value;
@@ -2245,10 +2237,9 @@ class Uri implements UriInterface
 
 				if (isset(self::$hashAlgos[$property]))
 				{
-					throw new InvalidArgumentException(sprintf(
-								'Invalid Uri property "%s"; hash properties are read-only',
-								$name
-							));
+					throw new InvalidArgumentException(
+								"Invalid Uri property `{$name}`; hash properties are read-only"
+							);
 				}
 
 				//--- Start of alias and mixed-case properties ---//
