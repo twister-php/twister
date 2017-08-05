@@ -1,25 +1,14 @@
 <?php
 
-/*
-use ArrayAccess;				//	http://php.net/manual/en/class.arrayaccess.php					Interface to provide accessing objects as arrays.
-use ArrayIterator;				//	http://php.net/manual/en/class.arrayiterator.php				This iterator allows to unset and modify values and keys while iterating over Arrays and Objects.
-use Countable;					//	http://php.net/manual/en/class.countable.php					Classes implementing Countable can be used with the count() function.
-use IteratorAggregate;			//	http://php.net/manual/en/class.iteratoraggregate.php			Interface to create an external Iterator.
-use Exception;					//	http://php.net/manual/en/class.exception.php					Exception is the base class for all Exceptions in PHP 5, and the base class for all user exceptions in PHP 7.
-use InvalidArgumentException;	//	http://php.net/manual/en/class.invalidargumentexception.php		Exception thrown if an argument is not of the expected type.
-use OutOfBoundsException;		//	http://php.net/manual/en/class.outofboundsexception.php			Exception thrown if a value is not a valid key. This represents errors that cannot be detected at compile time.
-use OutOfRangeException;		//	http://php.net/manual/en/class.outofrangeexception.php			Exception thrown when an illegal index was requested. This represents errors that should be detected at compile time.
-use BadMethodCallException;		//	http://php.net/manual/en/class.badmethodcallexception.php		Exception thrown if a callback refers to an undefined method or if some arguments are missing.
-use LengthException;			//	http://php.net/manual/en/class.lengthexception.php				Exception thrown if a length is invalid.
-use LogicException;				//	http://php.net/manual/en/class.logicexception.php				Exception that represents error in the program logic. This kind of exception should lead directly to a fix in your code.
-use DomainException;			//	http://php.net/manual/en/class.domainexception.php				Exception thrown if a value does not adhere to a defined valid data domain.
-use RangeException;				//	http://php.net/manual/en/class.rangeexception.php				Exception thrown to indicate range errors during program execution. Normally this means there was an arithmetic error other than under/overflow. This is the runtime version of DomainException.
-use UnexpectedValueException;	//	http://php.net/manual/en/class.unexpectedvalueexception.php		Exception thrown if a value does not match with a set of values. Typically this happens when a function calls another function and expects the return value to be of a certain type or value not including arithmetic or buffer related errors.
-use OverflowException;			//	http://php.net/manual/en/class.overflowexception.php			Exception thrown when adding an element to a full container.
-use UnderflowException;			//	http://php.net/manual/en/class.underflowexception.php			Exception thrown when performing an invalid operation on an empty container, such as removing an element.
-*/
+use ArrayAccess;
+use ArrayIterator;
+use Countable;
+use Exception;
+use InvalidArgumentException;
+use IteratorAggregate;
+use OutOfBoundsException;
 
-class Str implements Countable, IteratorAggregate, ArrayAccess
+class mb_string implements Countable, IteratorAggregate, ArrayAccess
 {
 	/**
 	 * An instance's string.
@@ -27,6 +16,14 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 * @var string
 	 */
 	protected $str;
+
+	/**
+	 * The string's encoding, which should be one of the mbstring module's
+	 * supported encodings.
+	 *
+	 * @var string
+	 */
+	protected $encoding;
 
 	/**
 	 *  Modified by Trevor Herselman
@@ -47,7 +44,13 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 				'n'     => false	//	added by Trevor Herselman
 			];
 
-	private static $charsArray;
+	/**
+	 * Default string encoding. Will be used if no encoding is specified.
+	 * Value can changed at run-time with the static method {@link setDefaultEncoding()}.
+	 * Use null for auto-detection of encoding.
+	 * @var string
+	 */
+	private static $_defaultEncoding = null;
 
 	/**
 	 *  Idea taken from CakePHP: https://api.cakephp.org/2.3/class-CakeRequest.html#$_detectors
@@ -57,15 +60,6 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	private static $_detectors = null;	//	['dotcom' => function(&$uri){return substr($uri->host, -4) === '.com'}] eg. isDotCom() || is('DotCom') || is('.com') (the '.com' version cannot be tested with is.com()!)
 										//	['domain' => function(&$uri, $domain){return substr($uri->host, -strlen($uri->host)) === $domain}]	//	isDomain('example.com') || isDomain('.com') || is('domain', '.com')
-
-	/**
-	 *  Array of supported hash algoithms, initialized to hash_algos() on first use!
-	 *      Used when generating dynamic hash properties eg. $str->md5
-	 *      Some algorithms cannot be used such as `gost-crypto`, `tiger128,3` etc.
-	 *			because of invalid characters in the name.
-	 *  http://php.net/manual/en/function.hash-algos.php
-	 */
-	private static $hashAlgos = null;
 
 	/**
 	 * Initializes a Stringy object and assigns both str and encoding properties
@@ -79,17 +73,18 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 * @throws \InvalidArgumentException if an array or object without a
 	 *         __toString method is passed as the first argument
 	 */
-	public function __construct($str = '')
+	public function __construct($str = '', $encoding = null)
 	{
 		if ( ! is_string($str)) {
 			if (is_array($str)) {
-				throw new InvalidArgumentException('Passed value cannot be an array');
+				throw new InvalidArgumentException('Passed value cannot be an array';
 			} elseif (is_object($str) && !method_exists($str, '__toString')) {
 				throw new InvalidArgumentException('Passed object must have a __toString method');
 			}
 		}
 
         $this->str = (string) $str;
+        $this->encoding = $encoding ?: \mb_internal_encoding();
 	}
 
 	/**
@@ -123,9 +118,39 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 * @throws \InvalidArgumentException if an array or object without a
 	 *         __toString method is passed as the first argument
 	 */
-	public static function create($str = '')
+	public static function create($str = '', $encoding = null)
 	{
-		return new static($str);
+		return new static($str, $encoding);
+	}
+
+	/**
+	 *  Added by Trevor Herselman
+     *  Alias of {@link auto()}.
+	 *
+	 * @param  mixed  $str      Value to modify, after being cast to string
+	 * @param  string $encoding The character encoding
+	 * @return static A Stringy object
+	 * @throws \InvalidArgumentException if an array or object without a
+	 *         __toString method is passed as the first argument
+	 */
+	public static function detect($str = '')
+	{
+		return new static($str, mb_detect_encoding($str));
+	}
+
+	/**
+	 *  Added by Trevor Herselman
+     *  Alias of {@link detect()}.
+	 *
+	 * @param  mixed  $str      Value to modify, after being cast to string
+	 * @param  string $encoding The character encoding
+	 * @return static A Stringy object
+	 * @throws \InvalidArgumentException if an array or object without a
+	 *         __toString method is passed as the first argument
+	 */
+	public static function auto($str = '')
+	{
+		return new static($str, mb_detect_encoding($str));
 	}
 
 	/**
@@ -146,7 +171,7 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function append($string)
 	{
-		return static::create($this->str . $string);
+		return static::create($this->str . $string, $this->encoding);
 	}
 
 	/**
@@ -157,7 +182,7 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function at($index)
 	{
-		return $this->str[$index];
+		return $this->substr($index, 1);
 	}
 
 	/**
@@ -172,8 +197,6 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function between($start, $end, $offset = 0)
 	{
-		trigger_error('Function ' . __METHOD__ . ' not implemented yet');
-
 		$startIndex = $this->indexOf($start, $offset);
 		if ($startIndex === false) {
 			return static::create('', $this->encoding);
@@ -197,8 +220,6 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function camelize()
 	{
-		trigger_error('Function ' . __METHOD__ . ' not implemented yet');
-
 		$encoding = $this->encoding;
 		$stringy = $this->trim()->lowerCaseFirst();
 		$stringy->str = preg_replace('/^[-_]+/', '', $stringy->str);
@@ -233,9 +254,12 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function chars()
 	{
-		trigger_error('Function ' . __METHOD__ . ' not implemented yet');
+		$chars = [];
+		for ($i = 0, $l = $this->length(); $i < $l; $i++) {
+			$chars[] = $this->at($i)->str;
+		}
 
-		return str_split($this->str);
+		return $chars;
 	}
 
 	/**
@@ -247,8 +271,6 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function collapseWhitespace()
 	{
-		trigger_error('Function ' . __METHOD__ . ' not implemented yet');
-
 		return $this->regexReplace('[[:space:]]+', ' ')->trim();
 	}
 
@@ -263,9 +285,13 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function contains($needle, $caseSensitive = true)
 	{
-		return	($caseSensitive ?
-				\strpos($this->str, $needle, 0) :
-				\stripos($this->str, $needle, 0)) !== false;
+		$encoding = $this->encoding;
+
+		if ($caseSensitive) {
+			return (\mb_strpos($this->str, $needle, 0, $encoding) !== false);
+		}
+
+		return (\mb_stripos($this->str, $needle, 0, $encoding) !== false);
 	}
 
 	/**
@@ -279,8 +305,6 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function containsAll($needles, $caseSensitive = true)
 	{
-		trigger_error('Function ' . __METHOD__ . ' not implemented yet');
-
 		if (empty($needles)) {
 			return false;
 		}
@@ -305,8 +329,6 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function containsAny($needles, $caseSensitive = true)
 	{
-		trigger_error('Function ' . __METHOD__ . ' not implemented yet');
-
 		if (empty($needles)) {
 			return false;
 		}
@@ -327,7 +349,7 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function count()
 	{
-		return strlen($this->str);
+		return $this->length();
 	}
 
 	/**
@@ -341,8 +363,6 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function countSubstr($substring, $caseSensitive = true)
 	{
-		trigger_error('Function ' . __METHOD__ . ' not implemented yet');
-
 		if ($caseSensitive) {
 			return \mb_substr_count($this->str, $substring, $this->encoding);
 		}
@@ -376,10 +396,16 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function delimit($delimiter)
 	{
-		$str = \preg_replace('~([^A-Z\b])([A-Z])~', '\1-\2', \trim($this->str));
-		$str = \preg_replace('~[-_\s]+~', $delimiter, \strtolower($str));
+		$regexEncoding = $this->regexEncoding();
+		$this->regexEncoding($this->encoding);
 
-		return new static($str);
+		$str = $this->eregReplace('\B([A-Z])', '-\1', $this->trim());
+		$str = \mb_strtolower($str, $this->encoding);
+		$str = $this->eregReplace('[-_\s]+', $delimiter, $str);
+
+		$this->regexEncoding($regexEncoding);
+
+		return static::create($str, $this->encoding);
 	}
 
 	/**
@@ -393,10 +419,8 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function endsWith($substring, $caseSensitive = true)
 	{
-		trigger_error('Function ' . __METHOD__ . ' not implemented yet');
-
 		$substringLength = \mb_strlen($substring, $this->encoding);
-		$strLength = strlen($this->str);
+		$strLength = $this->length();
 
 		$endOfStr = \mb_substr($this->str, $strLength - $substringLength,
 			$substringLength, $this->encoding);
@@ -421,8 +445,6 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function endsWithAny($substrings, $caseSensitive = true)
 	{
-		trigger_error('Function ' . __METHOD__ . ' not implemented yet');
-
 		if (empty($substrings)) {
 			return false;
 		}
@@ -445,8 +467,6 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function ensureLeft($substring)
 	{
-		trigger_error('Function ' . __METHOD__ . ' not implemented yet');
-
 		$stringy = static::create($this->str, $this->encoding);
 
 		if (!$stringy->startsWith($substring)) {
@@ -465,8 +485,6 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function ensureRight($substring)
 	{
-		trigger_error('Function ' . __METHOD__ . ' not implemented yet');
-
 		$stringy = static::create($this->str, $this->encoding);
 
 		if (!$stringy->endsWith($substring)) {
@@ -484,69 +502,48 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function first($n)
 	{
-		return new static($n <= 0 ? null : \substr($this->str, 0, $n));
+		$stringy = static::create($this->str, $this->encoding);
+
+		if ($n < 0) {
+			$stringy->str = '';
+			return $stringy;
+		}
+
+		return $stringy->substr(0, $n);
 	}
 
+	/**
+	 * Returns the encoding used by the Stringy object.
+	 *
+	 * @return string The current value of the $encoding property
+	 */
+	public function getEncoding()
+	{
+		return $this->encoding;
+	}
 
 	/**
 	 * Returns a new ArrayIterator, thus implementing the IteratorAggregate
 	 * interface. The ArrayIterator's constructor is passed an array of chars
-	 * in the string. This enables the use of foreach with instances of S.
+	 * in the multibyte string. This enables the use of foreach with instances
+	 * of Stringy\Stringy.
 	 *
 	 * @return \ArrayIterator An iterator for the characters in the string
 	 */
 	public function getIterator()
 	{
-		return new ArrayIterator(str_split($this->str));
+		return new ArrayIterator($this->chars());
 	}
 
 	/**
-	 * Returns true if the string contains a date in the format 'YYYY-MM-DD'
-	 * Alternative patterns:
-	 *		'/^\d{4}-\d{2}-\d{2} [0-2][0-3]:[0-5][0-9]:[0-5][0-9]$/'
-	 * 		'/^\d\d\d\d-\d\d-\d\d$/'
-	 * 		'/^([0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[1-2][0-9]|3[0-1])$/'
+	 *	Name taken from .NET Framework: https://msdn.microsoft.com/en-us/library/system.uri.gethashcode.aspx
+	 *	By default it uses `crc32`, which I think returns the hex values, but I think .NET returns the integer value, problem is with the negative values !?!?
 	 *
-	 * @return string[]|null Returns an array with 'year', 'month' and 'day'
-	 *                       from a matching date in the format 'YYYY-MM-DD', or null on failure
-	 */
-	public function getDate(string $pattern = null)
-	{
-		$pattern = $pattern ?? '/^(?P<year>[12][0-9]{3})-(?P<month>0[1-9]|1[0-2])-(?P<day>0[1-9]|[1-2][0-9]|3[0-1])$/';
-		return preg_match($pattern, $this->str, $matches) === false ? null : $matches;
-	}
-
-	/**
-	 * Wrapper around preg_match(), returning the array based on a matching pattern, or null on failure.
-	 * The pattern can contain any number of named or unnamed capture groups.
-	 *
-	 * @return string[]|null Returns an array with matching patterns, or null on failure
-	 */
-	public function getMatch(string $pattern, int $flags = 0, int $offset = 0)
-	{
-		return preg_match($pattern, $this->str, $matches, $flags, $offset) === false ? null : $matches;
-	}
-
-	/**
-	 * Wrapper around preg_match_all(), returning the array based on a matching pattern, or null on failure.
-	 * The pattern can contain any number of named or unnamed capture groups.
-	 *
-	 * @return string[]|null Returns an array with matching patterns, or null on failure
-	 */
-	public function getMatchAll(string $pattern, int $flags = PREG_PATTERN_ORDER, int $offset = 0)
-	{
-		return preg_match_all($pattern, $this->str, $matches, $flags, $offset) === false ? null : $matches;
-	}
-
-	/**
-	 * Gets a hash code of the internal string.
-	 *
-	 * @param  string|null $algo Algorithm name supported by the hash() library, defaults to 'md5'
-	 * @return string
+	 *	@return int
 	 */
 	public function hash(string $algo = 'md5', bool $raw_output = false)
 	{
-		return new static(hash($algo, $this->str, $raw_output));
+		return hash($algo, $this->str, $raw_output);
 	}
 
 	/**
@@ -557,8 +554,6 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function hasLowerCase()
 	{
-		trigger_error('Function not implemented yet');
-
 		return $this->matchesPattern('.*[[:lower:]]');
 	}
 
@@ -570,8 +565,6 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function hasUpperCase()
 	{
-		trigger_error('Function not implemented yet');
-
 		return $this->matchesPattern('.*[[:upper:]]');
 	}
 
@@ -586,8 +579,6 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function htmlDecode($flags = ENT_COMPAT)
 	{
-		trigger_error('Function not implemented yet');
-
 		return static::create(html_entity_decode($this->str, $flags, $this->encoding), $this->encoding);
 	}
 
@@ -601,8 +592,6 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function htmlEncode($flags = ENT_COMPAT)
 	{
-		trigger_error('Function not implemented yet');
-
 		return static::create(htmlentities($this->str, $flags, $this->encoding), $this->encoding);
 	}
 
@@ -614,8 +603,6 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function humanize()
 	{
-		trigger_error('Function not implemented yet');
-
 		return static::create(
 					str_replace(['_id', '_'], ['', ' '], $this->str),
 					$this->encoding)->trim()->upperCaseFirst();
@@ -632,8 +619,6 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function indexOf($needle, $offset = 0)
 	{
-		trigger_error('Function not implemented yet');
-
 		return \mb_strpos($this->str, (string) $needle, (int) $offset, $this->encoding);
 	}
 
@@ -649,8 +634,6 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function indexOfLast($needle, $offset = 0)
 	{
-		trigger_error('Function not implemented yet');
-
 		return \mb_strrpos($this->str, (string) $needle, (int) $offset, $this->encoding);
 	}
 
@@ -663,8 +646,6 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function insert($substring, $index)
 	{
-		trigger_error('Function not implemented yet');
-
 		$stringy = static::create($this->str, $this->encoding);
 		if ($index > $stringy->length()) {
 			return $stringy;
@@ -679,14 +660,13 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	}
 
 	/**
-	 * Returns true if the string contains only alphabetic chars, false otherwise.
+	 * Returns true if the string contains only alphabetic chars, false
+	 * otherwise.
 	 *
 	 * @return bool Whether or not $str contains only alphabetic chars
 	 */
 	public function isAlpha()
 	{
-		trigger_error('Function not implemented yet');
-
 		return $this->matchesPattern('^[[:alpha:]]*$');
 	}
 
@@ -698,8 +678,6 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function isAlphanumeric()
 	{
-		trigger_error('Function not implemented yet');
-
 		return $this->matchesPattern('^[[:alnum:]]*$');
 	}
 
@@ -711,48 +689,18 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function isBlank()
 	{
-		trigger_error('Function not implemented yet');
-
 		return $this->matchesPattern('^[[:space:]]*$');
 	}
 
 	/**
-	 * Returns true if the string contains a date in the format 'YYYY-MM-DD'
-	 * Alternative patterns:
-	 *		'/^\d{4}-\d{2}-\d{2} [0-2][0-3]:[0-5][0-9]:[0-5][0-9]$/'
-	 * 		'/^\d\d\d\d-\d\d-\d\d$/'
-	 * 		'/^([0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[1-2][0-9]|3[0-1])$/'
-	 *
-	 * @return bool Whether or not $str contains a matching date in the format 'YYYY-MM-DD'
-	 */
-	public function isDate(string $pattern = null)
-	{
-		$pattern = $pattern ??
-					($matches === null
-						? '/^(?:[0-9]{4})-(?:0[1-9]|1[0-2])-(?:0[1-9]|[1-2][0-9]|3[0-1])$/'
-						: '/^(?P<year>[0-9]{4})-(?P<month>0[1-9]|1[0-2])-(?P<day>0[1-9]|[1-2][0-9]|3[0-1])$/'
-					);
-		return preg_match($pattern, $this->str, $matches);
-	}
-
-	/**
-	 * Returns true if the string contains only hexadecimal chars, false otherwise.
-	 *
-	 * @return bool Whether or not $str contains only hexadecimal chars
-	 */
-	public function isHex()
-	{
-		return ctype_xdigit($this->str);
-	}
-
-	/**
-	 * Returns true if the string contains only hexadecimal chars, false otherwise.
+	 * Returns true if the string contains only hexadecimal chars, false
+	 * otherwise.
 	 *
 	 * @return bool Whether or not $str contains only hexadecimal chars
 	 */
 	public function isHexadecimal()
 	{
-		return ctype_xdigit($this->str);
+		return $this->matchesPattern('^[[:xdigit:]]*$');
 	}
 
 	/**
@@ -764,41 +712,24 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function isJson()
 	{
-		return is_array(json_decode($this->str, true));
+		if (!$this->length()) {
+			return false;
+		}
 
-	//	if (!$this->length()) return false;
-	//	json_decode($this->str);
-	//	return (json_last_error() === JSON_ERROR_NONE);
+		json_decode($this->str);
+
+		return (json_last_error() === JSON_ERROR_NONE);
 	}
 
 	/**
-	 * Returns true if the string contains only lower case chars, false otherwise.
-	 *
-	 * @return bool Whether or not $str contains only lower case characters
-	 */
-	public function isLower()
-	{
-		return \ctype_lower($this->str);
-	}
-
-	/**
-	 * Returns true if the string contains only lower case chars, false otherwise.
+	 * Returns true if the string contains only lower case chars, false
+	 * otherwise.
 	 *
 	 * @return bool Whether or not $str contains only lower case characters
 	 */
 	public function isLowerCase()
 	{
-		return \ctype_lower($this->str);
-	}
-
-	/**
-	 * Returns true if the string contains a match for $pattern
-	 *
-	 * @return bool Whether or not $str contains a match for $pattern
-	 */
-	public function isMatch($pattern, array &$matches = null)
-	{
-		return \preg_match($pattern, $this->str, $matches);
+		return $this->matchesPattern('^[[:lower:]]*$');
 	}
 
 	/**
@@ -811,6 +742,7 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 		return $this->str === 'b:0;' || @unserialize($this->str) !== false;
 	}
 
+
 	/**
 	 * Returns true if the string is base64 encoded, false otherwise.
 	 *
@@ -818,27 +750,18 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function isBase64()
 	{
-		return \base64_encode(\base64_decode($this->str, true)) === $this->str;
+		return (base64_encode(base64_decode($this->str, true)) === $this->str);
 	}
 
 	/**
-	 * Returns true if the string contains only upper case chars, false otherwise.
+	 * Returns true if the string contains only lower case chars, false
+	 * otherwise.
 	 *
-	 * @return bool Whether or not $str contains only upper case characters
-	 */
-	public function isUpper()
-	{
-		return \ctype_upper($this->str);
-	}
-
-	/**
-	 * Returns true if the string contains only upper case chars, false otherwise.
-	 *
-	 * @return bool Whether or not $str contains only upper case characters
+	 * @return bool Whether or not $str contains only lower case characters
 	 */
 	public function isUpperCase()
 	{
-		return \ctype_upper($this->str);
+		return $this->matchesPattern('^[[:upper:]]*$');
 	}
 
 	/**
@@ -849,17 +772,14 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function last($n)
 	{
-		return new static($n <= 0 ? null : \substr($this->str, -$n));
-	}
+		$stringy = static::create($this->str, $this->encoding);
 
-	/**
-	 * Converts the first character of the supplied string to lower case.
-	 *
-	 * @return static Object with the first character of $str being lower case
-	 */
-	public function lcFirst()
-	{
-		return new static(\lcfirst($this->str));
+		if ($n <= 0) {
+			$stringy->str = '';
+			return $stringy;
+		}
+
+		return $stringy->substr(-$n);
 	}
 
 	/**
@@ -869,7 +789,7 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function length()
 	{
-		return \strlen($this->str);
+		return \mb_strlen($this->str, $this->encoding);
 	}
 
 	/**
@@ -880,8 +800,6 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function lines()
 	{
-		trigger_error('Function not implemented yet');
-
 		$array = $this->split('[\r\n]{1,2}', $this->str);
 		for ($i = 0; $i < count($array); $i++) {
 			$array[$i] = static::create($array[$i], $this->encoding);
@@ -898,8 +816,6 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function longestCommonPrefix($otherStr)
 	{
-		trigger_error('Function not implemented yet');
-
 		$encoding = $this->encoding;
 		$maxLength = min($this->length(), \mb_strlen($otherStr, $encoding));
 
@@ -925,8 +841,6 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function longestCommonSuffix($otherStr)
 	{
-		trigger_error('Function not implemented yet');
-
 		$encoding = $this->encoding;
 		$maxLength = min($this->length(), \mb_strlen($otherStr, $encoding));
 
@@ -953,8 +867,6 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function longestCommonSubstring($otherStr)
 	{
-		trigger_error('Function not implemented yet');
-
 		// Uses dynamic programming to solve
 		// http://en.wikipedia.org/wiki/Longest_common_substring_problem
 		$encoding = $this->encoding;
@@ -1002,8 +914,6 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function lowerCaseFirst()
 	{
-		trigger_error('Function not implemented yet');
-
 		$first = \mb_substr($this->str, 0, 1, $this->encoding);
 		$rest = \mb_substr($this->str, 1, $this->length() - 1,
 			$this->encoding);
@@ -1011,29 +921,6 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 		$str = \mb_strtolower($first, $this->encoding) . $rest;
 
 		return static::create($str, $this->encoding);
-	}
-
-	/**
-	 * Returns a string with whitespace removed from the start/left of the string.
-	 * Accepts an optional string of characters to strip instead of the defaults.
-	 *
-	 * @param  string $character_mask Optional string of characters to strip
-	 * @return static Object with a trimmed $str
-	 */
-	public function ltrim(string $character_mask = " \t\n\r\0\x0B")
-	{
-		return new static(ltrim($this->str, $character_mask));
-	}
-
-	/**
-	 * Gets an MD5 hash code of the internal string. Return result can be raw binary or hex by default
-	 *
-	 * @param  bool|null $raw_output return the raw binary bytes or hex values of the md5 hash
-	 * @return string
-	 */
-	public function md5(bool $raw_output = false)
-	{
-		return new static(hash('md5', $this->str, $raw_output));
 	}
 
 	/**
@@ -1046,8 +933,6 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function offsetExists($offset)
 	{
-		trigger_error('Function not implemented yet');
-
 		$length = $this->length();
 		$offset = (int) $offset;
 
@@ -1071,8 +956,6 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function offsetGet($offset)
 	{
-		trigger_error('Function not implemented yet');
-
 		$offset = (int) $offset;
 		$length = $this->length();
 
@@ -1093,8 +976,6 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function offsetSet($offset, $value)
 	{
-		trigger_error('Function not implemented yet');
-
 		// Stringy is immutable, cannot directly set char
 		throw new Exception('Stringy object is immutable, cannot modify char');
 	}
@@ -1108,8 +989,6 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function offsetUnset($offset)
 	{
-		trigger_error('Function not implemented yet');
-
 		// Don't allow directly modifying the string
 		throw new Exception('Stringy object is immutable, cannot unset char');
 	}
@@ -1121,81 +1000,80 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 * 'left', 'right', 'both') is 'right'. Throws an InvalidArgumentException
 	 * if $padType isn't one of those 3 values.
 	 *
-	 * @param  int    $pad_length  Desired string length after padding
-	 * @param  string $pad_string  String used to pad, defaults to space
-	 * @param  string $pad_type One of 'left'|STR_PAD_LEFT, 'right'|STR_PAD_RIGHT or 'both'|STR_PAD_BOTH
+	 * @param  int    $length  Desired string length after padding
+	 * @param  string $padStr  String used to pad, defaults to space
+	 * @param  string $padType One of 'left', 'right', 'both'
 	 * @return static Object with a padded $str
 	 * @throws /InvalidArgumentException If $padType isn't one of 'right',
 	 *         'left' or 'both'
 	 */
-	public function pad(int $pad_length, string $pad_string = ' ', $pad_type = STR_PAD_RIGHT)
+	public function pad($length, $padStr = ' ', $padType = 'right')
 	{
-		if (is_string($pad_type))
-		{
-			if ( ! ctype_lower($pad_type))
-				$pad_type = strtolower($pad_type);
-
-			switch ($pad_type)
-			{
-				case 'left':	$pad_type = STR_PAD_LEFT;	break;
-				case 'right':	$pad_type = STR_PAD_RIGHT;	break;
-				case 'both':	$pad_type = STR_PAD_BOTH;	break;
-				default:
-					throw new InvalidArgumentException('Pad expects $padType to be one of ' .
-													"'left', 'right' or 'both'");
-			}
+		if (!in_array($padType, ['left', 'right', 'both'])) {
+			throw new InvalidArgumentException('Pad expects $padType ' .
+				"to be one of 'left', 'right' or 'both'");
 		}
-		return new static(str_pad($this->str, $pad_length, $pad_string, $pad_type));
+
+		switch ($padType) {
+			case 'left':
+				return $this->padLeft($length, $padStr);
+			case 'right':
+				return $this->padRight($length, $padStr);
+			default:
+				return $this->padBoth($length, $padStr);
+		}
 	}
 
 	/**
-	 * Returns a new string of a given length such that both sides of the string are padded.
-	 * Wrapper around str_pad() with $pad_type of 'both'|STR_PAD_BOTH.
+	 * Returns a new string of a given length such that both sides of the
+	 * string are padded. Alias for pad() with a $padType of 'both'.
 	 *
-	 * @param  int    $pad_length Desired string length after padding
-	 * @param  string $pad_string String used to pad, defaults to space
+	 * @param  int    $length Desired string length after padding
+	 * @param  string $padStr String used to pad, defaults to space
 	 * @return static String with padding applied
 	 */
-	public function padBoth(int $pad_length, string $pad_string = ' ')
+	public function padBoth($length, $padStr = ' ')
 	{
-		return new static(str_pad($this->str, $pad_length, $pad_string, STR_PAD_BOTH));
+		$padding = $length - $this->length();
+
+		return $this->applyPadding(floor($padding / 2), ceil($padding / 2), $padStr);
 	}
 
 	/**
-	 * Returns a new string of a given length such that the beginning of the string is padded.
-	 * Wrapper around str_pad() with $pad_type of 'left'|STR_PAD_LEFT.
+	 * Returns a new string of a given length such that the beginning of the
+	 * string is padded. Alias for pad() with a $padType of 'left'.
 	 *
-	 * @param  int    $pad_length Desired string length after padding
-	 * @param  string $pad_string String used to pad, defaults to space
+	 * @param  int    $length Desired string length after padding
+	 * @param  string $padStr String used to pad, defaults to space
 	 * @return static String with left padding
 	 */
-	public function padLeft(int $pad_length, string $pad_string = ' ')
+	public function padLeft($length, $padStr = ' ')
 	{
-		return new static(str_pad($this->str, $pad_length, $pad_string, STR_PAD_LEFT));
+		return $this->applyPadding($length - $this->length(), 0, $padStr);
 	}
 
 	/**
-	 * Returns a new string of a given length such that the end of the string is padded.
-	 * Wrapper around str_pad() with $pad_type of 'right'|STR_PAD_RIGHT.
+	 * Returns a new string of a given length such that the end of the string
+	 * is padded. Alias for pad() with a $padType of 'right'.
 	 *
-	 * @param  int    $pad_length Desired string length after padding
-	 * @param  string $pad_string String used to pad, defaults to space
-	 * @return static String with left padding
+	 * @param  int    $length Desired string length after padding
+	 * @param  string $padStr String used to pad, defaults to space
+	 * @return static String with right padding
 	 */
-	public function padRight(int $pad_length, string $pad_string = ' ')
+	public function padRight($length, $padStr = ' ')
 	{
-		return new static(str_pad($this->str, $pad_length, $pad_string, STR_PAD_RIGHT));
+		return $this->applyPadding(0, $length - $this->length(), $padStr);
 	}
 
 	/**
 	 * Returns a new string starting with $string.
 	 *
-	 * @param  string $string The string to prepend
-	 * @return static Object with prepend $string
+	 * @param  string $string The string to append
+	 * @return static Object with appended $string
 	 */
 	public function prepend($string)
 	{
-		return new static($string . $this->str);
+		return static::create($string . $this->str, $this->encoding);
 	}
 
 	/**
@@ -1212,8 +1090,6 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function regexReplace($pattern, $replacement, $options = 'msr')
 	{
-		trigger_error('Function not implemented yet');
-
 		$regexEncoding = $this->regexEncoding();
 		$this->regexEncoding($this->encoding);
 
@@ -1231,8 +1107,6 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function removeLeft($substring)
 	{
-		trigger_error('Function not implemented yet');
-
 		$stringy = static::create($this->str, $this->encoding);
 
 		if ($stringy->startsWith($substring)) {
@@ -1251,8 +1125,6 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function removeRight($substring)
 	{
-		trigger_error('Function not implemented yet');
-
 		$stringy = static::create($this->str, $this->encoding);
 
 		if ($stringy->endsWith($substring)) {
@@ -1271,8 +1143,6 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function repeat($multiplier)
 	{
-		trigger_error('Function not implemented yet');
-
 		return static::create(str_repeat($this->str, $multiplier), $this->encoding);
 	}
 
@@ -1285,19 +1155,25 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function replace($search, $replacement)
 	{
-		trigger_error('Function not implemented yet');
-
 		return $this->regexReplace(preg_quote($search), $replacement);
 	}
 
 	/**
-	 * Returns a reversed string.
+	 * Returns a reversed string. A multibyte version of strrev().
 	 *
 	 * @return static Object with a reversed $str
 	 */
 	public function reverse()
 	{
-		return new static(strrev($this->str));
+		$strLength = $this->length();
+		$reversed = '';
+
+		// Loop from last index of string to first
+		for ($i = $strLength - 1; $i >= 0; $i--) {
+			$reversed .= \mb_substr($this->str, $i, 1, $this->encoding);
+		}
+
+		return static::create($reversed, $this->encoding);
 	}
 
 	/**
@@ -1312,8 +1188,6 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function safeTruncate($length, $substring = '')
 	{
-		trigger_error('Function not implemented yet');
-
 		$stringy = static::create($this->str, $this->encoding);
 		if ($length >= $stringy->length()) {
 			return $stringy;
@@ -1340,58 +1214,23 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 		return $stringy;
 	}
 
-	/**
-	 * Gets a SHA1 (160-bit) hash code of the internal string. Return result can be raw binary or hex by default
-	 *
-	 * @param  bool|null $raw_output return the raw binary bytes or hex values of the SHA1 hash
-	 * @return string
-	 */
-	public function sha1(bool $raw_output = false)
-	{
-		return new static(hash('sha1', $this->str, $raw_output));
-	}
-
-	/**
-	 * Gets a SHA-256 hash code of the internal string. Return result can be raw binary or hex by default
-	 *
-	 * @param  bool|null $raw_output return the raw binary bytes or hex values of the SHA-256 hash
-	 * @return string
-	 */
-	public function sha256(bool $raw_output = false)
-	{
-		return new static(hash('sha256', $this->str, $raw_output));
-	}
-
-	/**
-	 * Gets a SHA-384 hash code of the internal string. Return result can be raw binary or hex by default
-	 *
-	 * @param  bool|null $raw_output return the raw binary bytes or hex values of the SHA-384 hash
-	 * @return string
-	 */
-	public function sha384(bool $raw_output = false)
-	{
-		return new static(hash('sha384', $this->str, $raw_output));
-	}
-
-	/**
-	 * Gets a SHA-512 hash code of the internal string. Return result can be raw binary or hex by default
-	 *
-	 * @param  bool|null $raw_output return the raw binary bytes or hex values of the SHA-512 hash
-	 * @return string
-	 */
-	public function sha512(bool $raw_output = false)
-	{
-		return new static(hash('sha512', $this->str, $raw_output));
-	}
-
 	/*
-	 * A str_shuffle() wrapper function.
+	 * A multibyte str_shuffle() function. It returns a string with its
+	 * characters in random order.
 	 *
 	 * @return static Object with a shuffled $str
 	 */
 	public function shuffle()
 	{
-		return new static(str_shuffle($this->str));
+		$indexes = range(0, $this->length() - 1);
+		shuffle($indexes);
+
+		$shuffledStr = '';
+		foreach ($indexes as $i) {
+			$shuffledStr .= \mb_substr($this->str, $i, 1, $this->encoding);
+		}
+
+		return static::create($shuffledStr, $this->encoding);
 	}
 
 	/**
@@ -1408,8 +1247,6 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function slugify($replacement = '-', $language = 'en')
 	{
-		trigger_error('Function not implemented yet');
-
 		$stringy = $this->toAscii($language);
 
 		$stringy->str = str_replace('@', $replacement, $stringy);
@@ -1422,17 +1259,27 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	}
 
 	/**
-	 * Returns true if the string begins with $substring, false otherwise.
-	 * By default, the comparison is case-sensitive,
-	 * but can be made insensitive by setting $caseSensitive to false.
+	 * Returns true if the string begins with $substring, false otherwise. By
+	 * default, the comparison is case-sensitive, but can be made insensitive
+	 * by setting $caseSensitive to false.
 	 *
 	 * @param  string $substring     The substring to look for
-	 * @param  bool   $caseSensitive Whether or not to enforce case-sensitivity
+	 * @param  bool   $caseSensitive Whether or not to enforce
+	 *                               case-sensitivity
 	 * @return bool   Whether or not $str starts with $substring
 	 */
 	public function startsWith($substring, $caseSensitive = true)
 	{
-		return ($caseSensitive ? strpos($this->str, $substring) : stripos($this->str, $substring)) === 0;
+		$substringLength = \mb_strlen($substring, $this->encoding);
+		$startOfStr = \mb_substr($this->str, 0, $substringLength,
+			$this->encoding);
+
+		if (!$caseSensitive) {
+			$substring = \mb_strtolower($substring, $this->encoding);
+			$startOfStr = \mb_strtolower($startOfStr, $this->encoding);
+		}
+
+		return (string) $substring === $startOfStr;
 	}
 
 	/**
@@ -1447,8 +1294,6 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function startsWithAny($substrings, $caseSensitive = true)
 	{
-		trigger_error('Function not implemented yet');
-
 		if (empty($substrings)) {
 			return false;
 		}
@@ -1474,8 +1319,6 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function slice($start, $end = null)
 	{
-		trigger_error('Function not implemented yet');
-
 		if ($end === null) {
 			$length = $this->length();
 		} elseif ($end >= 0 && $end <= $start) {
@@ -1500,8 +1343,6 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function split($pattern, $limit = null)
 	{
-		trigger_error('Function not implemented yet');
-
 		if ($limit === 0) {
 			return [];
 		}
@@ -1552,19 +1393,17 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function stripWhitespace()
 	{
-		trigger_error('Function not implemented yet');
-
 		return $this->regexReplace('[[:space:]]+', '');
 	}
 
 	/**
-	 * Returns the length of the string. strlen() wrapper.
+	 * Returns the length of the string. An alias for PHP's mb_strlen() function.
 	 *
 	 * @return int The number of characters in $str given the encoding
 	 */
 	public function strlen()
 	{
-		return strlen($this->str);
+		return \mb_strlen($this->str, $this->encoding);
 	}
 
 	/**
@@ -1578,18 +1417,21 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function substr($start, $length = null)
 	{
-		return new static($length === null ? substr($this->str, $start) : substr($this->str, $start, $length));
+		$length = $length === null ? $this->length() : $length;
+
+		return static::create(\mb_substr($this->str, $start, $length, $this->encoding), $this->encoding);
 	}
 
 	/**
 	 * Surrounds $str with the given substring.
 	 *
 	 * @param  string $substring The substring to add to both sides
-	 * @return static Object whose $str had the substring both prepended and appended
+	 * @return static Object whose $str had the substring both prepended and
+	 *                 appended
 	 */
 	public function surround($substring)
 	{
-		return new static($substring . $this->str . $substring);
+		return static::create(implode('', [$substring, $this->str, $substring]), $this->encoding);
 	}
 
 	/**
@@ -1599,8 +1441,6 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function swapCase()
 	{
-		trigger_error('Function not implemented yet');
-
 		$stringy = static::create($this->str, $this->encoding);
 		$encoding = $stringy->encoding;
 
@@ -1628,8 +1468,6 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function tidy()
 	{
-		trigger_error('Function not implemented yet');
-
 		$str = preg_replace([
 			'/\x{2026}/u',
 			'/[\x{201C}\x{201D}]/u',
@@ -1647,15 +1485,14 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 
 	/**
 	 * Returns a trimmed string with the first letter of each word capitalized.
-	 * Also accepts an array, $ignore, allowing you to list words not to be capitalized.
+	 * Also accepts an array, $ignore, allowing you to list words not to be
+	 * capitalized.
 	 *
 	 * @param  array  $ignore An array of words not to capitalize
 	 * @return static Object with a titleized $str
 	 */
 	public function titleize($ignore = null)
 	{
-		trigger_error('Function not implemented yet');
-
 		$stringy = static::create($this->trim(), $this->encoding);
 		$encoding = $this->encoding;
 
@@ -1691,8 +1528,6 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function toAscii($language = 'en', $removeUnsupported = true)
 	{
-		trigger_error('Function not implemented yet');
-
 		$str = $this->str;
 
 		$langSpecific = $this->langSpecificCharsArray($language);
@@ -1712,13 +1547,27 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	}
 
 	/**
-	 * Returns a base64 encoded string object.
+	 * Returns a boolean representation of the given logical string value.
+	 * For example, 'true', '1', 'on' and 'yes' will return true. 'false', '0',
+	 * 'off', and 'no' will return false. In all instances, case is ignored.
+	 * For other numeric strings, their sign will determine the return value.
+	 * In addition, blank strings consisting of only whitespace will return
+	 * false. For all other strings, the return value is a result of a
+	 * boolean cast.
 	 *
-	 * @return static base64 encoded string object
+	 * @return bool A boolean value for the string
 	 */
-	public function toBase64()
+	public function toBoolean()
 	{
-		return new static(base64_encode($this->str));
+		$key = ctype_lower($this->str) ? $this->str : strtolower($this->str);
+
+		if (isset(self::$boolMap[$key]))
+			return self::$boolMap[$key];
+
+		if (is_numeric($this->str))
+			return (intval($this->str) > 0);
+
+		return (bool) $this->regexReplace('[[:space:]]', '')->str;
 	}
 
 	/**
@@ -1732,46 +1581,14 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	}
 
 	/**
-	 * Returns a boolean representation of the given logical string value.
-	 * For example, 'true', '1', 'on' and 'yes' will return true. 'false', '0',
-	 * 'off', and 'no' will return false. In all instances, case is ignored.
-	 * For other numeric strings, their sign will determine the return value.
-	 * In addition, blank strings consisting of only whitespace will return false.
-	 * For all other strings, the return value is a result of a boolean cast.
-	 *
-	 * @return bool A boolean value for the string
-	 */
-	public function toBoolean()
-	{
-		$key = ctype_lower($this->str) ? $this->str : strtolower($this->str);
-
-		if (isset(self::$boolMap[$key]))
-			return self::$boolMap[$key];
-
-		if (is_numeric($this->str))
-			return intval($this->str) > 0;
-
-		return (bool) \str_replace(\str_split(" \t\n\r\0\x0B"), '', $this->str);
-	}
-
-	/**
-	 * Converts all characters in the string to lowercase.
-	 *
-	 * @return static Object with all characters of $str being lowercase
-	 */
-	public function toLower()
-	{
-		return new static(\strtolower($this->str));
-	}
-
-	/**
-	 * Converts all characters in the string to lowercase.
+	 * Converts all characters in the string to lowercase. An alias for PHP's
+	 * mb_strtolower().
 	 *
 	 * @return static Object with all characters of $str being lowercase
 	 */
 	public function toLowerCase()
 	{
-		return new static(\strtolower($this->str));
+		return static::create(\mb_strtolower($this->str, $this->encoding), $this->encoding);
 	}
 
 	/**
@@ -1783,7 +1600,7 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function toSpaces($tabLength = 4)
 	{
-		return new static(\str_replace("\t", \str_repeat(' ', $tabLength), $this->str));
+		return static::create(str_replace("\t", str_repeat(' ', $tabLength), $this->str), $this->encoding);
 	}
 
 	/**
@@ -1796,7 +1613,7 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function toTabs($tabLength = 4)
 	{
-		return new static(\str_replace(\str_repeat(' ', $tabLength), "\t", $this->str));
+		return static::create(str_replace(str_repeat(' ', $tabLength), "\t", $this->str), $this->encoding);
 	}
 
 	/**
@@ -1806,41 +1623,33 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function toTitleCase()
 	{
-		return new static(\ucwords($this->str));
-	//	return new static(\mb_convert_case($this->str, \MB_CASE_TITLE, 'UTF-8'));
+		return static::create(\mb_convert_case($this->str, \MB_CASE_TITLE, $this->encoding), $this->encoding);
 	}
 
 	/**
-	 * Converts all characters in the string to uppercase.
-	 *
-	 * @return static Object with all characters of $str being uppercase
-	 */
-	public function toUpper()
-	{
-		return new static(\ctype_upper($this->str));
-	}
-
-	/**
-	 * Converts all characters in the string to uppercase.
+	 * Converts all characters in the string to uppercase. An alias for PHP's
+	 * mb_strtoupper().
 	 *
 	 * @return static Object with all characters of $str being uppercase
 	 */
 	public function toUpperCase()
 	{
-		return new static(\ctype_upper($this->str));
+		return static::create(\mb_strtoupper($this->str, $this->encoding), $this->encoding);
 	}
 
 	/**
-	 * Returns a string with whitespace removed from the start and end of the string.
-	 * Supports the removal of unicode whitespace.
-	 * Accepts an optional string of characters to strip instead of the defaults.
+	 * Returns a string with whitespace removed from the start and end of the
+	 * string. Supports the removal of unicode whitespace. Accepts an optional
+	 * string of characters to strip instead of the defaults.
 	 *
-	 * @param  string $character_mask Optional string of characters to strip
+	 * @param  string $chars Optional string of characters to strip
 	 * @return static Object with a trimmed $str
 	 */
-	public function trim(string $character_mask = " \t\n\r\0\x0B")
+	public function trim($chars = null)
 	{
-		return new static(\trim($this->str, $character_mask));
+		$chars = ($chars) ? preg_quote($chars) : '[:space:]';
+
+		return $this->regexReplace("^[$chars]+|[$chars]+\$", '');
 	}
 
 	/**
@@ -1851,9 +1660,11 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 * @param  string $chars Optional string of characters to strip
 	 * @return static Object with a trimmed $str
 	 */
-	public function trimLeft(string $character_mask = " \t\n\r\0\x0B")
+	public function trimLeft($chars = null)
 	{
-		return new static(\ltrim($this->str, $character_mask));
+		$chars = ($chars) ? preg_quote($chars) : '[:space:]';
+
+		return $this->regexReplace("^[$chars]+", '');
 	}
 
 	/**
@@ -1864,9 +1675,11 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 * @param  string $chars Optional string of characters to strip
 	 * @return static Object with a trimmed $str
 	 */
-	public function trimRight(string $character_mask = " \t\n\r\0\x0B")
+	public function trimRight($chars = null)
 	{
-		return new static(\rtrim($this->str, $character_mask));
+		$chars = ($chars) ? preg_quote($chars) : '[:space:]';
+
+		return $this->regexReplace("[$chars]+\$", '');
 	}
 
 	/**
@@ -1880,8 +1693,6 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function truncate($length, $substring = '')
 	{
-		trigger_error('Function ' . __METHOD__ . ' not implemented yet');
-
 		$stringy = static::create($this->str, $this->encoding);
 		if ($length >= $stringy->length()) {
 			return $stringy;
@@ -1898,26 +1709,15 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	}
 
 	/**
-	 * Converts the first character of the supplied string to upper case.
-	 *
-	 * @return static Object with the first character of $str being upper case
-	 */
-	public function ucFirst()
-	{
-		return new static(\ucfirst($this->str));
-	}
-
-	/**
 	 * Returns a lowercase and trimmed string separated by underscores.
 	 * Underscores are inserted before uppercase characters (with the exception
-	 * of the first character of the string), and in place of spaces as well as dashes.
+	 * of the first character of the string), and in place of spaces as well as
+	 * dashes.
 	 *
 	 * @return static Object with an underscored $str
 	 */
-	public function underscored()	//	AKA snake_case
+	public function underscored()
 	{
-		trigger_error('Function ' . __METHOD__ . ' not implemented yet');
-
 		return $this->delimit('_');
 	}
 
@@ -1930,8 +1730,6 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function upperCamelize()
 	{
-		trigger_error('Function ' . __METHOD__ . ' not implemented yet');
-
 		return $this->camelize()->upperCaseFirst();
 	}
 
@@ -1942,8 +1740,6 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function upperCaseFirst()
 	{
-		trigger_error('Function ' . __METHOD__ . ' not implemented yet');
-
 		$first = \mb_substr($this->str, 0, 1, $this->encoding);
 		$rest = \mb_substr($this->str, 1, $this->length() - 1, $this->encoding);
 
@@ -1959,10 +1755,10 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	protected function charsArray()
 	{
-		if (isset(self::$charsArray))
-			return self::$charsArray;
+		static $charsArray;
+		if (isset($charsArray)) return $charsArray;
 
-		return self::$charsArray = [
+		return $charsArray = [
 			'0'     => ['°', '₀', '۰', '０'],
 			'1'     => ['¹', '₁', '۱', '１'],
 			'2'     => ['²', '₂', '۲', '２'],
@@ -2137,8 +1933,6 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	protected static function langSpecificCharsArray($language = 'en')
 	{
-		trigger_error('Function ' . __METHOD__ . ' not implemented yet');
-
 		$split = preg_split('/[-_]/', $language);
 		$language = strtolower($split[0]);
 
@@ -2178,8 +1972,6 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	protected function applyPadding($left = 0, $right = 0, $padStr = ' ')
 	{
-		trigger_error('Function ' . __METHOD__ . ' not implemented yet');
-
 		$stringy = static::create($this->str, $this->encoding);
 		$length = \mb_strlen($padStr, $stringy->encoding);
 
@@ -2206,8 +1998,6 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	protected function matchesPattern($pattern)
 	{
-		trigger_error('Function ' . __METHOD__ . ' not implemented yet');
-
 		$regexEncoding = $this->regexEncoding();
 		$this->regexEncoding($this->encoding);
 
@@ -2223,8 +2013,6 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	protected function eregReplace($pattern, $replacement, $string, $option = 'msr')
 	{
-		trigger_error('Function ' . __METHOD__ . ' not implemented yet');
-
 		static $functionExists;
 		if ($functionExists === null) {
 			$functionExists = function_exists('\mb_split');
@@ -2244,8 +2032,6 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	protected function regexEncoding()
 	{
-		trigger_error('Function ' . __METHOD__ . ' not implemented yet');
-
 		static $functionExists;
 
 		if ($functionExists === null) {
@@ -2258,50 +2044,42 @@ class Str implements Countable, IteratorAggregate, ArrayAccess
 		}
 	}
 
-	/**
-	 * Returns a string with whitespace removed from the start and end of the string.
-	 * Supports the removal of unicode whitespace.
-	 * Accepts an optional string of characters to strip instead of the defaults.
-	 *
-	 * @param  string $character_mask Optional string of characters to strip
-	 * @return static Object with a trimmed $str
-	 */
-	public function rtrim(string $character_mask = " \t\n\r\0\x0B")
+	protected function supportsEncoding()
 	{
-		return new static(\rtrim($this->str, $character_mask));
+		$supported = ['UTF-8' => true, 'ASCII' => true];
+
+		if (isset($supported[$this->encoding])) {
+			return true;
+		} else {
+			throw new \RuntimeException('Stringy method requires the ' .
+				'mbstring module for encodings other than ASCII and UTF-8. ' .
+				'Encoding used: ' . $this->encoding);
+		}
 	}
 
 
 	function __get($name)
 	{
+		static $length;
 		switch ($name)
 		{
-			case 'length':		return \strlen($this->str);
-
+			case 'encoding':	return $this->encoding;
+			case 'length':		return \mb_strlen($this->str, $this->encoding);
 			default:
-
-				if ( ! ctype_lower($name))
-					$name = strtolower($name);
-
-				if (self::$hashAlgos === null)
-					self::$hashAlgos = array_flip(hash_algos());	//	set the hash algorithms as keys for faster lookup with isset() instead of in_array()!
-
-				if (isset(self::$hashAlgos[$name]))					//	we converted the hash name to lowercase above so we can safely support this: $this->Sha256
-					return hash($name, $this->str);
-
-				//--- Start of alias and mixed-case properties ---//
-
-				switch ($name)
-				{
-					//	possible mixed-case variants `normalized` to lowercase. eg. `Scheme` => `scheme`
-					case 'length':		return \strlen($this->str);
-				}
+				
 		}
 	}
 
-	static function curdate($format = 'Y-m-d')
+
+	function __set($name, $value)
 	{
-		return new static(date($format));
+		static $length;
+		switch ($name)
+		{
+			case 'encoding':	return $this->encoding	=	mb_internal_encoding();
+			case 'length':		return strlen($this->_str);
+			case 'test':		return strlen($this->_str);
+		}
 	}
 
 }

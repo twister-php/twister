@@ -214,14 +214,27 @@ class Request
 			}
 			else
 			{
+				$callable = require $this->container->config['paths']['elements'] . $controller . '.php';
+				if (is_callable($callable))
+				{
+					$reflection = new \ReflectionFunction($callable);
+					return $reflection->invokeArgs($this->_get_args_from_params($reflection->getParameters()));
+				}
+				else
+				{
+					throw new \Exception("Controller action `{$controller}` must return a callable function!");
+				}
+			/*
 				//(require __DIR__ . '/../controllers/' . $controller . '.php')($params);
-				$result = require __DIR__ . '/../controllers/' . $controller . '.php';
+				//$result = require __DIR__ . '/../controllers/' . $controller . '.php';
+				$result = require $this->container->config['paths']['elements'] . $controller . '.php';
 				if (is_callable($result))							//	controller is (possibly) a callable function
 				{
 					$reflection = new \ReflectionFunction($result);
 					return $reflection->invokeArgs($this->_get_args_from_params($reflection->getParameters()));
 				}
 				//	else											//	controller is public/global code already executed directly inside the included file
+			*/
 			}
 		}
 		else if (is_callable($controller))
@@ -289,6 +302,18 @@ class Request
 	}
 
 	//	Dynamic route controller::handler argument builder
+	//
+	//	Need to somehow re-work this ...
+	//
+	//	I don't like the fact that the `$bytype` array is actually initializing the `db` and `user`!
+	//	Should probably somehow use a `switch` statement for the `$bytype`
+	//
+	//	NOTE: I cannot really make this process dynamic by searching the `container` array.
+	//		So I can't do something like this: `if ($param->type === $container->type)` ...
+	//		because for example; the `db` value is actually a closure because it's an `inline factory`
+	//		It's not a `Twister\Db` ... yet! So I can't compare it to a `function (Db $db)` value!
+	//		`Twister\Db !== Closure`
+	//
 	private function _get_args_from_params(array $params)
 	{
 		$byType	=	[	'twister\container'	=>	&$this->container,

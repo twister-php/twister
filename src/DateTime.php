@@ -1,5 +1,9 @@
 <?php
 
+namespace Twister;
+
+use ArrayAccess;
+
 /*
 use ArrayAccess;				//	http://php.net/manual/en/class.arrayaccess.php					Interface to provide accessing objects as arrays.
 use ArrayIterator;				//	http://php.net/manual/en/class.arrayiterator.php				This iterator allows to unset and modify values and keys while iterating over Arrays and Objects.
@@ -19,7 +23,7 @@ use OverflowException;			//	http://php.net/manual/en/class.overflowexception.php
 use UnderflowException;			//	http://php.net/manual/en/class.underflowexception.php			Exception thrown when performing an invalid operation on an empty container, such as removing an element.
 */
 
-class Str implements Countable, IteratorAggregate, ArrayAccess
+class DateTime implements Countable, IteratorAggregate, ArrayAccess
 {
 	/**
 	 * An instance's string.

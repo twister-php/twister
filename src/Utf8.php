@@ -8,6 +8,25 @@ use InvalidArgumentException;
 use IteratorAggregate;
 use OutOfBoundsException;
 
+/*
+use ArrayAccess;				//	http://php.net/manual/en/class.arrayaccess.php					Interface to provide accessing objects as arrays.
+use ArrayIterator;				//	http://php.net/manual/en/class.arrayiterator.php				This iterator allows to unset and modify values and keys while iterating over Arrays and Objects.
+use Countable;					//	http://php.net/manual/en/class.countable.php					Classes implementing Countable can be used with the count() function.
+use IteratorAggregate;			//	http://php.net/manual/en/class.iteratoraggregate.php			Interface to create an external Iterator.
+use Exception;					//	http://php.net/manual/en/class.exception.php					Exception is the base class for all Exceptions in PHP 5, and the base class for all user exceptions in PHP 7.
+use InvalidArgumentException;	//	http://php.net/manual/en/class.invalidargumentexception.php		Exception thrown if an argument is not of the expected type.
+use OutOfBoundsException;		//	http://php.net/manual/en/class.outofboundsexception.php			Exception thrown if a value is not a valid key. This represents errors that cannot be detected at compile time.
+use OutOfRangeException;		//	http://php.net/manual/en/class.outofrangeexception.php			Exception thrown when an illegal index was requested. This represents errors that should be detected at compile time.
+use BadMethodCallException;		//	http://php.net/manual/en/class.badmethodcallexception.php		Exception thrown if a callback refers to an undefined method or if some arguments are missing.
+use LengthException;			//	http://php.net/manual/en/class.lengthexception.php				Exception thrown if a length is invalid.
+use LogicException;				//	http://php.net/manual/en/class.logicexception.php				Exception that represents error in the program logic. This kind of exception should lead directly to a fix in your code.
+use DomainException;			//	http://php.net/manual/en/class.domainexception.php				Exception thrown if a value does not adhere to a defined valid data domain.
+use RangeException;				//	http://php.net/manual/en/class.rangeexception.php				Exception thrown to indicate range errors during program execution. Normally this means there was an arithmetic error other than under/overflow. This is the runtime version of DomainException.
+use UnexpectedValueException;	//	http://php.net/manual/en/class.unexpectedvalueexception.php		Exception thrown if a value does not match with a set of values. Typically this happens when a function calls another function and expects the return value to be of a certain type or value not including arithmetic or buffer related errors.
+use OverflowException;			//	http://php.net/manual/en/class.overflowexception.php			Exception thrown when adding an element to a full container.
+use UnderflowException;			//	http://php.net/manual/en/class.underflowexception.php			Exception thrown when performing an invalid operation on an empty container, such as removing an element.
+*/
+
 class Utf8 implements Countable, IteratorAggregate, ArrayAccess
 {
 	/**
@@ -32,16 +51,30 @@ class Utf8 implements Countable, IteratorAggregate, ArrayAccess
 	 *  @var string
 	 */
 	private static $boolMap = [
-				'true'  => true,
 				'1'     => true,
+				'true'  => true,
+				'True'  => true,
+				'TRUE'  => true,
 				'on'    => true,
+				'On'    => true,
+				'ON'    => true,
 				'yes'   => true,
+				'Yes'   => true,
+				'YES'   => true,
 				'y'     => true,	//	added by Trevor Herselman
-				'false' => false,
+				'Y'     => true,	//	added by Trevor Herselman
 				'0'     => false,
+				'false' => false,
+				'False' => false,
+				'FALSE' => false,
 				'off'   => false,
+				'Off'   => false,
+				'OFF'   => false,
 				'no'    => false,
+				'No'    => false,
+				'NO'    => false,
 				'n'     => false	//	added by Trevor Herselman
+				'N'     => false	//	added by Trevor Herselman
 			];
 
 	/**
@@ -73,12 +106,12 @@ class Utf8 implements Countable, IteratorAggregate, ArrayAccess
 	 * @throws \InvalidArgumentException if an array or object without a
 	 *         __toString method is passed as the first argument
 	 */
-	public function __construct($str = '', $encoding = null)
+	public function __construct($str = '')
 	{
 		if ( ! is_string($str)) {
 			if (is_array($str)) {
 				throw new InvalidArgumentException('Passed value cannot be an array';
-			} elseif (is_object($str) && !method_exists($str, '__toString')) {
+			} else if (is_object($str) && ! method_exists($str, '__toString')) {
 				throw new InvalidArgumentException('Passed object must have a __toString method');
 			}
 		}
@@ -113,14 +146,13 @@ class Utf8 implements Countable, IteratorAggregate, ArrayAccess
 	 * if the first argument is an array or object without a __toString method.
 	 *
 	 * @param  mixed  $str      Value to modify, after being cast to string
-	 * @param  string $encoding The character encoding
 	 * @return static A Stringy object
 	 * @throws \InvalidArgumentException if an array or object without a
 	 *         __toString method is passed as the first argument
 	 */
-	public static function create($str = '', $encoding = null)
+	public static function create($str = '')
 	{
-		return new static($str, $encoding);
+		return new static($str);
 	}
 
 	/**
@@ -135,7 +167,9 @@ class Utf8 implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public static function detect($str = '')
 	{
-		return new static($str, mb_detect_encoding($str));
+		$from_encoding = mb_detect_encoding($str);
+		// convert encoding
+		return new static($str);
 	}
 
 	/**
@@ -150,7 +184,9 @@ class Utf8 implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public static function auto($str = '')
 	{
-		return new static($str, mb_detect_encoding($str));
+		$from_encoding = mb_detect_encoding($str);
+		// convert encoding
+		return new static($str);
 	}
 
 	/**
@@ -541,7 +577,7 @@ class Utf8 implements Countable, IteratorAggregate, ArrayAccess
 	 *
 	 *	@return int
 	 */
-	public function hash(string $algo = 'md5', bool $raw_output = false)
+	public function hash($algo = 'md5', $raw_output = false)
 	{
 		return hash($algo, $this->str, $raw_output);
 	}
@@ -2078,7 +2114,6 @@ class Utf8 implements Countable, IteratorAggregate, ArrayAccess
 		{
 			case 'encoding':	return $this->encoding	=	mb_internal_encoding();
 			case 'length':		return strlen($this->_str);
-			case 'test':		return strlen($this->_str);
 		}
 	}
 
