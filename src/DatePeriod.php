@@ -6,7 +6,7 @@ use \DateTime;					//	http://php.net/manual/en/class.datetime.php
 
 use IteratorAggregate;			//	http://php.net/manual/en/class.iteratoraggregate.php			Interface to create an external Iterator.
 
-class DateIterator extends DatePeriod implements IteratorAggregate
+class DatePeriod extends DatePeriod implements IteratorAggregate
 {
 	public function __construct($date)
 	{
