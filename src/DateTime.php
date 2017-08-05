@@ -2309,3 +2309,5 @@ class DateTime implements Countable, IteratorAggregate, ArrayAccess
 	}
 
 }
+
+DateTime::$utc = new \DateTimeZone('UTC');

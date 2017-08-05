@@ -3,43 +3,32 @@
 namespace Twister;
 
 use \DateTime;					//	http://php.net/manual/en/class.datetime.php
+use \DateInterval;				//	http://php.net/manual/en/class.dateinterval.php
+use \DateTimeZone;				//	http://php.net/manual/en/class.datetimezone.php
+use \DatePeriod;				//	http://php.net/manual/en/class.dateperiod.php
 
-use IteratorAggregate;			//	http://php.net/manual/en/class.iteratoraggregate.php			Interface to create an external Iterator.
+echo 'here 1';
 
-class DatePeriod extends DatePeriod implements IteratorAggregate
+class DatePeriod extends \DatePeriod
 {
-	public function __construct($date)
-	{
-		
-	}
+	public static $utc	= null;
+	public static $p1d	= null;
 
-	public function __construct()
+	public function __construct($start, $interval_spec = null, $end = '9999-12-31')
 	{
-		$this->position = 0;
-	}
-
-	public function rewind()
-	{
-		$this->position = 0;
-	}
-
-	public function current()
-	{
-		return $this->array[$this->position];
-	}
-
-	public function key()
-	{
-		return $this->position;
+		parent::__construct(	is_string($start) ? new \DateTime($start, self::$utc) : $start,
+								$interval_spec === null ? self::$p1d : (is_string($interval_spec) ? new \DateInterval($interval_spec) : $interval_spec),
+								is_string($end) ? new \DateTime($end, self::$utc) : $end
+							);
 	}
 
 	public function next()
 	{
-		++$this->position;
-	}
-
-	public function valid()
-	{
-		return isset($this->array[$this->position]);
+trigger_error('HERE');
+		$this->current->add($this->interval);
+		return $this;
 	}
 }
+
+DatePeriod::$utc = new \DateTimeZone('UTC');
+DatePeriod::$p1d = new \DateInterval('P1D');
