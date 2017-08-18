@@ -47,7 +47,7 @@ class DateIterator implements Iterator
 
 	public function key()
 	{
-		return $this->start->diff($this->current)->format('%r%a');
+		return (int) $this->start->diff($this->current)->format('%r%a');
 	}
 
 	public function next()

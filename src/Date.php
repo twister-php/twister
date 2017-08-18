@@ -3,9 +3,12 @@
 namespace Twister;
 
 use \DateTime;					//	http://php.net/manual/en/class.datetime.php
+use \DateInterval;				//	http://php.net/manual/en/class.dateinterval.php
+use \DateTimeZone;				//	http://php.net/manual/en/class.datetimezone.php
 
-use ArrayAccess;				//	http://php.net/manual/en/class.arrayaccess.php					Interface to provide accessing objects as arrays.
-use IteratorAggregate;			//	http://php.net/manual/en/class.iteratoraggregate.php			Interface to create an external Iterator.
+use \ArrayAccess;				//	http://php.net/manual/en/class.arrayaccess.php					Interface to provide accessing objects as arrays.
+use \IteratorAggregate;			//	http://php.net/manual/en/class.iteratoraggregate.php			Interface to create an external Iterator.
+use \Closure;
 
 /*
 use ArrayAccess;				//	http://php.net/manual/en/class.arrayaccess.php					Interface to provide accessing objects as arrays.
@@ -26,75 +29,228 @@ use OverflowException;			//	http://php.net/manual/en/class.overflowexception.php
 use UnderflowException;			//	http://php.net/manual/en/class.underflowexception.php			Exception thrown when performing an invalid operation on an empty container, such as removing an element.
 */
 
-class Date implements IteratorAggregate, ArrayAccess
+class Date implements ArrayAccess, IteratorAggregate
 {
-	protected $str = null;
+	protected $date		=	null;
 
-	public static $utc = null;
+	public static $utc	=	null;
+	public static $p1d	=	null;
 
 	/**
+	 *	Create a new Twister\Date instance.
 	 *
+	 *	@link	http://php.net/manual/en/datetime.construct.php
 	 *
-	 *	@link http://php.net/manual/en/datetime.construct.php
-	 *
-	 *
-	 *	@param  mixed  $str      Value to modify, after being cast to string
-	 *	@param  string $encoding The character encoding
-	 *	@throws \InvalidArgumentException if an array or object without a
-	 *					__toString method is passed as the first argument
+	 *	@param \DateTime|string|null     $date
 	 */
 	public function __construct($date)
 	{
-		//	I will need a FAST constructor if I want to return new Date objects from functions like 'add', 'sub', 'next' etc.
-		$this->str = $date;
-		return;
-
 		if (is_string($date))
 		{
-			if (strlen($date) === 10) // 1234-67-90
-			{
-				if (preg_match('/\d\d\d\d-\d\d-\d\d/', $date) === 1) // '~^([1-9]\d\d\d)[- /.](0[1-9]|1[012])[- /.](0[1-9]|[12][0-9]|3[01])$~'
-				{
-					$this->str = $date;
-					return;
-				}
-				throw new InvalidArgumentException('Date string must have the following format: "YYYY-MM-DD"');
-			}
-			throw new InvalidArgumentException('Date string must have 10 characters');
+			$this->date = new \DateTime($date, self::$utc);
+		}
+		else if ($date instanceof \DateTime)
+		{
+			$this->date = $date;
+		}
+		else if (is_object($date))
+		{
+			$this->date = new \DateTime((string) $date, self::$utc);
+		}
+		else if (is_array($date))
+		{
+			throw new InvalidArgumentException('Array constructor not implemented');
 		}
 		else
 		{
-			if (is_array($date))
-			{
-				if (count($date) === 3)
-				{
-					if (isset($date['year']) && isset($date['month']) && isset($date['day']))
-					{
-						
-					}
-					else if (isset($date[0]) && isset($date[1]) && isset($date[2]) &&
-							is_numeric($date[0]) && is_numeric($date[0]) && is_numeric($date[0]) &&
-							$date[0] >= 0 && $date[0] <= 9999 && is_numeric($date[0]) && is_numeric($date[0]))
-					{
-					}
-				}
-				else
-				{
-					throw new InvalidArgumentException('Invalid date array `' . print_r($date, true) . '` passed to Twister\Date, array must have 3 members!');
-				}
-			}
-			else if ($date instanceof DateTime)
-			{
-			
-			}
-			else if (is_object($date))
-			{
-				if ( ! method_exists($date, '__toString'))
-					throw new InvalidArgumentException('Passed object must have a __toString method');
-				$this->str = (string) $date;
-			}
+			throw new InvalidArgumentException(sprintf(
+						'Invalid type passed to Date constructor; expecting a string or DateTime object, received "%s"; use normalize() to create Date objects from various formats',
+						(is_object($date) ? get_class($date) : gettype($date))
+					));
 		}
 	}
+
+	/**
+	 * Returns the value in $str.
+	 *
+	 * @return string The current value of the $str property
+	 */
+	public function __toString()
+	{
+		return $this->date->format('Y-m-d');
+	}
+
+
+	/**
+	 * Returns a formatted string
+	 *
+	 * @return string
+	 */
+	public function __invoke($format = 'Y-m-d')
+	{
+		return $this->date->format($format);
+	}
+
+
+	/**
+	 *	Implements IteratorAggregate
+	 *
+	 *	@link	http://php.net/manual/en/class.iteratoraggregate.php
+	 *
+	 *	@return \Twister\DatePeriod
+	 */
+	public function getIterator()
+	{
+		return new \Twister\DatePeriod($this);
+	}
+
+
+	/**
+	 *	Gets the date object
+	 */
+	public function getDate()
+	{
+		return $this->date;
+	}
+
+
+	/**
+	 *	Wrapper around \DateTime->setDate() for the current date
+	 *
+	 *	@link http://php.net/manual/en/datetime.setdate.php
+	 *
+	 *	`Resets the current date of the DateTime object to a different date.`
+	 *
+	 *	@param  int|string	$param1
+	 *	@param  int|null	$param2
+	 *	@param  int|null	$param3
+	 *	@return $this
+	 */
+	public function setDate($param1, $param2 = null, $param3 = null)
+	{
+		if (is_string($param1) && $param2 === null && $param3 === null)
+		{
+			if (preg_match('~(\d\d\d\d)-(\d\d)-(\d\d)~', $param1, $values) === 1)
+			{
+				$this->date->setDate($values[1], $values[2], $values[3]);
+			}
+			else
+			{
+				throw new InvalidArgumentException("Invalid string format `{$param1}` passed to setDate()");
+			}
+		}
+		else if (is_numeric($param1) && is_numeric($param2) && is_numeric($param3))
+		{
+			$this->date->setDate($param1, $param2, $param3);
+		}
+		else if (($param1 instanceof \DateTime || $param1 instanceof \Twister\DateTime) && $param2 === null && $param3 === null)
+		{
+			$this->date = new \DateTime($param1->format('Y-m-d'), self::$utc);
+		}
+		else if (is_object($param1) && $param2 === null && $param3 === null)
+		{
+			if ( ! method_exists($param1, '__toString'))
+				throw new InvalidArgumentException('Object passed to setDate() must have a __toString method');
+
+			$this->date = new \DateTime((string) $param1, self::$utc);
+		}
+		else
+		{
+			throw new InvalidArgumentException(sprintf(
+						'Invalid type passed to setDate(), received "%s"',
+						(is_object($param1) ? get_class($param1) : gettype($param1))
+					));
+		}
+		return $this;
+	}
+
+	/**
+	 *	Wrapper around \DateTime->setTime() for the current time
+	 *
+	 *	@link	http://php.net/manual/en/datetime.settime.php
+	 *
+	 *	`Resets the current time of the DateTime object to a different time.`
+	 *
+	 *	@param  int|string	$param1
+	 *	@param  int|null	$param2
+	 *	@param  int|null	$param3
+	 *	@return $this
+	 */
+	public function setTime($param1, $param2 = null, $param3 = null)
+	{
+		if (is_string($param1) && $param2 === null && $param3 === null)
+		{
+			if (preg_match('~(\d\d):(\d\d):(\d\d)~', $param1, $values) === 1)
+			{
+				$this->date->setTime($values[1], $values[2], $values[3]);
+				return $this;
+			}
+			else
+			{
+				throw new InvalidArgumentException("Invalid string format `{$param1}` passed to setTime(); expecting `HH:MM:SS`");
+			}
+		}
+		$this->date->setTime($param1, $param2, $param3);
+		return $this;
+	}
+
+	/**
+	 *	Sets the current date timezone
+	 *
+	 *	@link	http://php.net/manual/en/datetime.settimezone.php
+	 *
+	 *	@param  string|DateTimeZone $timezone
+	 *	@return $this
+	 */
+	public function setTimezone($timezone = null)
+	{
+		$this->date->setTimezone($timezone === null ? self::$utc : is_string($timezone) ? ($timezone === 'UTC' ? self::$utc : new \DateTimeZone($timezone)) : ($timezone instanceof \DateTimeZone ? $timezone : $timezone->getTimezone()));
+		return $this;
+	}
+
+	/**
+	 *	Sets the date and time based on a Unix timestamp.
+	 *
+	 *	@link	http://php.net/manual/en/datetime.settimestamp.php
+	 *
+	 *	@param  int $unixtimestamp
+	 *	@return $this
+	 */
+	public function setTimestamp($unixtimestamp)
+	{
+		$this->date->setTimestamp($unixtimestamp);
+		return $this;
+	}
+
+	/**
+	 *	Wrapper for DateTime::getTimestamp()
+	 *
+	 *	`Gets the Unix timestamp.`
+	 *
+	 *	@link	http://php.net/manual/en/datetime.gettimestamp.php
+	 *
+	 *	`Returns the Unix timestamp representing the date.`
+	 */
+	public function getTimestamp()
+	{
+		return $this->date->getTimestamp();
+	}
+
+
+	/**
+	 *	Wrapper for DateTime::getOffset()
+	 *
+	 *	`Returns the timezone offset.`
+	 *
+	 *	@link	http://php.net/manual/en/datetime.getoffset.php
+	 *
+	 *	`Returns the timezone offset in seconds from UTC on success or FALSE on failure.`
+	 */
+	public function getOffset()
+	{
+		return $this->date->getOffset();
+	}
+
 
 	/**
 	 *	Wrapper around \DateTime->add()
@@ -112,11 +268,11 @@ class Date implements IteratorAggregate, ArrayAccess
 	 *	Formats are based on the » ISO 8601 duration specification. 
 	 *
 	 *	@param  string $interval_spec The character encoding
-	 *	@return new Twister\Date isntance or false on failure
+	 *	@return new Twister\Date instance or false on failure
 	 */
-	public function add($interval_spec = 'P1D')
+	public function add($interval_spec = null)
 	{
-		$this->str = (new \DateTime($this->str, new \DateTimeZone('UTC')))->add(new \DateInterval($interval_spec))->format('Y-m-d');
+		$this->date->add($interval_spec === null ? self::$p1d : is_string($interval_spec) ? ($interval_spec === 'P1D' ? self::$p1d : new \DateInterval($interval_spec)) : $interval_spec);
 		return $this;
 	}
 
@@ -136,11 +292,39 @@ class Date implements IteratorAggregate, ArrayAccess
 	 *	Formats are based on the » ISO 8601 duration specification. 
 	 *
 	 *	@param  string $interval_spec The character encoding
-	 *	@return new Twister\Date isntance or false on failure
+	 *	@return new Twister\Date instance or false on failure
 	 */
-	public function sub($interval_spec = 'P1D')
+	public function sub($interval_spec = null)
 	{
-		$this->str = (new \DateTime($this->str, new \DateTimeZone('UTC')))->add(new \DateInterval($interval_spec))->format('Y-m-d');
+		$this->date->sub($interval_spec === null ? self::$p1d : is_string($interval_spec) ? ($interval_spec === 'P1D' ? self::$p1d : new \DateInterval($interval_spec)) : $interval_spec);
+		return $this;
+	}
+
+	/**
+	 *	Wrapper around \DateTime->format()
+	 *
+	 *	@link	http://php.net/manual/en/datetime.format.php
+	 *
+	 *	@return string
+	 */
+	public function format($format = 'Y-m-d')
+	{
+		return $this->date->format($format);
+	}
+
+	/**
+	 *	Wrapper around \DateTime->modify()
+	 *
+	 *	@link	http://php.net/manual/en/datetime.modify.php
+	 *
+	 *	`Alter the timestamp of a DateTime object by incrementing or decrementing in a format accepted by strtotime().`
+	 *
+	 *	@param  string $modify A date/time string.
+	 *	@return $this
+	 */
+	public function modify($modify = '+1 day')
+	{
+		$this->date->modify($modify);
 		return $this;
 	}
 
@@ -152,13 +336,13 @@ class Date implements IteratorAggregate, ArrayAccess
 	 *
 	 *	@param  mixed  $str      Value to modify, after being cast to string
 	 *	@param  string $encoding The character encoding
-	 *	@return new Twister\Date isntance or false on failure
+	 *	@return new Twister\Date instance or false on failure
 	 *	@throws \InvalidArgumentException if an array or object without a
 	 *					__toString method is passed as the first argument
 	 */
 	public static function create($time = 'now', $timezone = null)
 	{
-		return new static($time, $timezone);
+		return new static(new \DateTime($time, $timezone === null ? self::$utc : (is_string($timezone) ? new \DateTimeZone($timezone) : $timezone)));
 	}
 
 	/**
@@ -176,7 +360,7 @@ class Date implements IteratorAggregate, ArrayAccess
 	 *	Date::check([30, 4, 2017])								=== false	- year is 3rd array member, same as `checkdate` BUT `day` MUST be 2nd param and `month` MUST be 3rd param like `checkdate()`
 	 *
 	 *	@param  mixed  $str      Value to modify, after being cast to string
-	 *	@return new Twister\Date isntance or false on failure
+	 *	@return new Twister\Date instance or false on failure
 	 *	@throws \InvalidArgumentException if an array or object without a
 	 *					__toString method is passed as the first argument
 	 */
@@ -200,7 +384,7 @@ class Date implements IteratorAggregate, ArrayAccess
 	 *	Date::check([30, 4, 2017])								=== false	- year is 3rd array member, same as `checkdate` BUT `day` MUST be 2nd param and `month` MUST be 3rd param like `checkdate()`
 	 *
 	 *	@param  mixed  $str      Value to modify, after being cast to string
-	 *	@return new Twister\Date isntance or false on failure
+	 *	@return new Twister\Date instance or false on failure
 	 *	@throws \InvalidArgumentException if an array or object without a
 	 *					__toString method is passed as the first argument
 	 */
@@ -364,16 +548,6 @@ class Date implements IteratorAggregate, ArrayAccess
 	}
 
 	/**
-	 * Returns the value in $str.
-	 *
-	 * @return string The current value of the $str property
-	 */
-	public function __toString()
-	{
-		return $this->str;
-	}
-
-	/**
 	 *
 	 * @param  string $start start date
 	 * @param  string $end    end date
@@ -382,37 +556,6 @@ class Date implements IteratorAggregate, ArrayAccess
 	public function between($start, $end)
 	{
 		trigger_error('Function ' . __METHOD__ . ' not implemented yet');
-	}
-
-	/**
-	 *	Convert any date format into valid MySQL date format 'YYYY-MM-DD'
-	 *	eg. YYYY.MM.DD -> YYYY-MM-DD
-	 *
-	 * @return 
-	 */
-	public function dasherize()
-	{
-		return $this->delimit('-');
-	}
-
-	/**
-	 *
-	 * @param  string $delimiter 
-	 * @return string
-	 */
-	public function delimit($delimiter)
-	{
-		return implode($delimiter, explode('-', $this->str));
-	}
-
-	/**
-	 *
-	 * @return string[]|null Returns an array with 'year', 'month' and 'day'
-	 *                       from a matching date in the format 'YYYY-MM-DD', or null on failure
-	 */
-	public function format($format = 'Y-m-d', $tz = 'UTC')
-	{
-		return (new \DateTime($this->str, new \DateTimeZone($tz)))->format($format);
 	}
 
 	/**
@@ -449,7 +592,7 @@ class Date implements IteratorAggregate, ArrayAccess
 	 */
 	public function hash($algo = 'md5', $raw_output = false)
 	{
-		return hash($algo, $this->str, $raw_output);
+		return hash($algo, $this->date->format('Y-m-d'), $raw_output);
 	}
 
 	/**
@@ -460,7 +603,7 @@ class Date implements IteratorAggregate, ArrayAccess
 	 */
 	public function getHash($algo = 'md5', $raw_output = false)
 	{
-		return hash($algo, $this->str, $raw_output);
+		return hash($algo, $this->date->format('Y-m-d'), $raw_output);
 	}
 
 	/**
@@ -478,7 +621,7 @@ class Date implements IteratorAggregate, ArrayAccess
 	 */
 	public function isBlank()
 	{
-		return $this->str === null || $this->str === '0000-00-00';
+		return $this->date === null || $this->date === '0000-00-00';
 	}
 
 	/**
@@ -489,7 +632,7 @@ class Date implements IteratorAggregate, ArrayAccess
 	 */
 	public function md5($raw_output = false)
 	{
-		return hash('md5', $this->str, $raw_output);
+		return hash('md5', $this->date->format('Y-m-d'), $raw_output);
 	}
 
 	/**
@@ -499,16 +642,14 @@ class Date implements IteratorAggregate, ArrayAccess
 	 */
 	public function offsetExists($offset)
 	{
-		throw new Exception('TODO');
-
 		switch($offset)
 		{
-			case 0:	return (bool) substr($this->str, 0, 4);	//	0123-56-89
-			case 1:	return (bool) substr($this->str, 5, 2);
-			case 2:	return (bool) substr($this->str, 8, 2);
-			case 'year':	return (bool) substr($this->str, 0, 4);	//	0123-56-89
-			case 'month':	return (bool) substr($this->str, 5, 2);
-			case 'day':		return (bool) substr($this->str, 8, 2);
+			case 0:			return true;
+			case 1:			return true;
+			case 2:			return true;
+			case 'year':	return true;
+			case 'month':	return true;
+			case 'day':		return true;
 		}
 		return false;
 	}
@@ -522,42 +663,93 @@ class Date implements IteratorAggregate, ArrayAccess
 	 */
 	public function offsetGet($offset)
 	{
-		throw new Exception('TODO');
-
-		switch($offset)
+		switch ($name)
 		{
-			case 'year':	return substr($this->str, 0, 4);	//	0123-56-89
-			case 'month':	return substr($this->str, 5, 2);
-			case 'day':		return substr($this->str, 8, 2);
-			case 0:	return substr($this->str, 0, 4);	//	0123-56-89
-			case 1:	return substr($this->str, 5, 2);
-			case 2:	return substr($this->str, 8, 2);
+			case 'year':	return $this->date->format('Y');
+			case 'month':	return $this->date->format('m');
+			case 'day':		return $this->date->format('d');
+			case 0:			return $this->date->format('Y');
+			case 1:			return $this->date->format('m');
+			case 2:			return $this->date->format('d');
 		}
-		return false;
+
+		if (strlen($name) === 1)
+			return $this->date->format($name);
+
+		/*
+			//	http://php.net/manual/en/function.date.php
+			case 'd':	return ;				//	Day of the month, 2 digits with leading zeros										eg. 01 to 31
+			case 'D':	return ;				//	A textual representation of a day, three letters									eg. Mon through Sun
+			case 'j':	return ;				//	Day of the month without leading zeros												eg. 1 to 31
+			case 'l':	return ;				//	A full textual representation of the day of the week								eg. Sunday through Saturday
+			case 'N':	return ;				//	ISO-8601 numeric representation of the day of the week (added in PHP 5.1.0			eg. 1 (for Monday) through 7 (for Sunday)
+			case 'S':	return ;				//	English ordinal suffix for the day of the month, 2 characters						eg.  	st, nd, rd or th. Works well with j
+			case 'w':	return ;				//	Numeric representation of the day of the week										eg. 0 (for Sunday) through 6 (for Saturday)
+			case 'z':	return ;				//	 	The day of the year (starting from 0)											eg. 0 through 365
+			case 'W':	return ;				//	ISO-8601 week number of year, weeks starting on Monday								eg. Example: 42 (the 42nd week in the year)
+			case 'F':	return ;				//	A full textual representation of a month, such as January or March					eg. January through December
+			case 'm':	return ;				//	Numeric representation of a month, with leading zeros								eg. 01 through 12
+			case 'M':	return ;				//	A short textual representation of a month, three letters							eg. Jan through Dec
+			case 'n':	return ;				//	Numeric representation of a month, without leading zeros							eg. 1 through 12
+			case 't':	return ;				//	Number of days in the given month													eg. 28 through 31
+			case 'L':	return ;				//	Whether it's a leap year															eg. 1 if it is a leap year, 0 otherwise.
+			case 'o':	return ;				//	ISO-8601 week-numbering year. This has the same value as Y, except that if the ISO week number (W) belongs to the previous or next year, that year is used instead. (added in PHP 5.1.0)			eg. Examples: 1999 or 2003
+			case 'Y':	return ;				//	A full numeric representation of a year, 4 digits									eg. Examples: 1999 or 2003
+			case 'y':	return ;				//	A two digit representation of a year												eg. Examples: 99 or 03
+			case 'U':	return ;				//	Seconds since the Unix Epoch (January 1 1970 00:00:00 GMT)							eg. See also time()
+		*/
+
+		if ( ! ctype_lower($name))
+			$name = strtolower($name);
+
+		//	@link	http://www.tutorialspoint.com/mysql/mysql-date-time-functions.htm
+		//	@link	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html
+
+		switch ($name)
+		{
+			case 'dayname':			return $this->date->format('l');		//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_dayname			MySQL: Returns the name of the weekday for date. The language used for the name is controlled by the value of the lc_time_names system variable
+			case 'dayofweek':		return $this->date->format('w') + 1;	//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_dayofweek			MySQL: 1 = Sunday, 2 = Monday, …, 7 = Saturday		'w' = 0 (for Sunday) through 6 (for Saturday)
+			case 'dayofmonth':		return $this->date->format('j');		//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_dayofmonth		MySQL: Returns the day of the month for date, in the range 1 to 31, or 0 for dates such as '0000-00-00' or '2008-00-00' that have a zero day part.
+			case 'dayofyear':		return $this->date->format('z') + 1;	//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_dayofyear			MySQL: Returns the day of the year for date, in the range 1 to 366.
+			case 'monthname':		return $this->date->format('F');		//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_monthname			MySQL: Returns the full name of the month for date. The language used for the name is controlled by the value of the lc_time_names system variable
+			case 'timestamp':		return $this->date->format('U');		//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_timestamp			MySQL: With a single argument, this function returns the date or datetime expression expr as a datetime value. With two arguments, it adds the time expression expr2 to the date or datetime expression expr1 and returns the result as a datetime value.
+			case 'unix_timestamp':	return $this->date->format('U');		//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_unix-timestamp	MySQL: If called with no argument, returns a Unix timestamp (seconds since '1970-01-01 00:00:00' UTC).
+			case 'to_days':			break;									//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_to-days			MySQL: Given a date date, returns a day number (the number of days since year 0).
+			case 'utc_date':		return $this->date->format('Y-m-d');	//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_utc-date			MySQL: Returns the current UTC date as a value in 'YYYY-MM-DD' or YYYYMMDD format, depending on whether the function is used in a string or numeric context.
+			case 'utc_time':		return $this->date->format('H:i:s');	//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_utc-time			MySQL: Returns the current UTC time as a value in 'HH:MM:SS'
+			case 'utc_timestamp':	return $this->date->format('Y-m-d H:i:s');	//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_utc-timestamp	MySQL: Returns the current UTC date and time as a value in 'YYYY-MM-DD HH:MM:SS' or YYYYMMDDHHMMSS format, depending on whether the function is used in a string or numeric context.
+			case 'quarter':			return $this->date->format('m') / 4 + 1;	//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_quarter		MySQL: Returns the quarter of the year for date, in the range 1 to 4.
+			case 'week':			break;									//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_week				MySQL: This function returns the week number for date. The two-argument form of WEEK() enables you to specify whether the week starts on Sunday or Monday and whether the return value should be in the range from 0 to 53 or from 1 to 53. If the mode argument is omitted, the value of the default_week_format system variable is used. See Section 5.1.5, “Server System Variables”.
+			case 'weekday':			return $this->date->format('N') - 1;	//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_weekday			MySQL: Returns the weekday index for date (0 = Monday, 1 = Tuesday, … 6 = Sunday).
+			case 'weekofyear':		break;									//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_weekofyear		MySQL: Returns the calendar week of the date as a number in the range from 1 to 53. WEEKOFYEAR() is a compatibility function that is equivalent to WEEK(date,3).
+			case 'yearweek':		break;									//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_yearweek			MySQL: Returns year and week for a date. The year in the result may be different from the year in the date argument for the first and the last week of the year.
+			case 'date':			return $this->date->format('Y-m-d');	//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_date				MySQL: Extracts the date part of the date or datetime expression expr.
+
+				throw new \InvalidArgumentException('TODO: Property offsetGet["' . $name . '"] not implemented yet');
+
+			//	strtolower($name) versions
+			case 'year':		return $this->date->format('Y');
+			case 'month':		return $this->date->format('m');
+			case 'day':			return $this->date->format('d');
+
+			case 'hour':		return $this->date->format('G');			//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_hour				MySQL: Returns the hour for time. The range of the return value is 0 to 23 for time-of-day values. However, the range of TIME values actually is much larger, so HOUR can return values greater than 23.
+			case 'minute':		return $this->date->format('i');			//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_minute			MySQL: Returns the minute for time, in the range 0 to 59.
+			case 'second':		return $this->date->format('s');			//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_hour				MySQL: Returns the second for time, in the range 0 to 59.
+		}
+
+		throw new \InvalidArgumentException('Property offsetGet["' . $name . '"] does not exist!');
 	}
 
 	/**
-	 * Implements part of the ArrayAccess interface, but throws an exception
-	 * when called. This maintains the immutability of Stringy objects.
+	 *	Implements part of the ArrayAccess interface
 	 *
-	 * @param  mixed      $offset The index of the character
-	 * @param  mixed      $value  Value to set
-	 * @throws \Exception When called
+	 *	@param  mixed      $offset The index of the character
+	 *	@param  mixed      $value  Value to set
+	 *	@throws \Exception When called
 	 */
 	public function offsetSet($offset, $value)
 	{
-		throw new Exception('TODO');
-
-		switch($offset)
-		{
-			case 'year':	return $value;	//	0123-56-89
-			case 'month':	return $value;
-			case 'day':		return $value;
-			case 0:	return $value;	//	0123-56-89
-			case 1:	return $value;
-			case 2:	return $value;
-		}
-		throw new Exception('TODO');
+		throw new \Exception('Cannot set array indexes!');
 	}
 
 	/**
@@ -569,7 +761,7 @@ class Date implements IteratorAggregate, ArrayAccess
 	 */
 	public function offsetUnset($offset)
 	{
-		throw new Exception('TODO');
+		throw new \Exception('Cannot unset array indexes!');
 	}
 
 	/**
@@ -608,7 +800,7 @@ class Date implements IteratorAggregate, ArrayAccess
 	 */
 	public function sha1($raw_output = false)
 	{
-		return hash('sha1', $this->str, $raw_output);
+		return hash('sha1', $this->date->format('Y-m-d'), $raw_output);
 	}
 
 	/**
@@ -619,7 +811,7 @@ class Date implements IteratorAggregate, ArrayAccess
 	 */
 	public function sha256($raw_output = false)
 	{
-		return hash('sha256', $this->str, $raw_output);
+		return hash('sha256', $this->date->format('Y-m-d'), $raw_output);
 	}
 
 	/**
@@ -630,7 +822,7 @@ class Date implements IteratorAggregate, ArrayAccess
 	 */
 	public function sha384($raw_output = false)
 	{
-		return hash('sha384', $this->str, $raw_output);
+		return hash('sha384', $this->date->format('Y-m-d'), $raw_output);
 	}
 
 	/**
@@ -641,7 +833,7 @@ class Date implements IteratorAggregate, ArrayAccess
 	 */
 	public function sha512($raw_output = false)
 	{
-		return hash('sha512', $this->str, $raw_output);
+		return hash('sha512', $this->date->format('Y-m-d'), $raw_output);
 	}
 
 	/**
@@ -650,7 +842,7 @@ class Date implements IteratorAggregate, ArrayAccess
 	 */
 	public function toArray()
 	{
-		return explode('-', $this->str);
+		return explode('-', $this->date->format('Y-m-d'));
 	}
 
 	/**
@@ -676,94 +868,191 @@ class Date implements IteratorAggregate, ArrayAccess
 	{
 		switch ($name)
 		{
-			case 'year':	return substr($this->str, 0, 4);
-			case 'month':	return substr($this->str, 5, 2);
-			case 'day':		return substr($this->str, 8, 2);
-			case 'days':	return ;
+			case 'year':	return $this->date->format('Y');
+			case 'month':	return $this->date->format('m');
+			case 'day':		return $this->date->format('d');
+		}
 
+		if (strlen($name) === 1)
+			return $this->date->format($name);
+
+		/*
 			//	http://php.net/manual/en/function.date.php
 			case 'd':	return ;				//	Day of the month, 2 digits with leading zeros										eg. 01 to 31
 			case 'D':	return ;				//	A textual representation of a day, three letters									eg. Mon through Sun
 			case 'j':	return ;				//	Day of the month without leading zeros												eg. 1 to 31
 			case 'l':	return ;				//	A full textual representation of the day of the week								eg. Sunday through Saturday
 			case 'N':	return ;				//	ISO-8601 numeric representation of the day of the week (added in PHP 5.1.0			eg. 1 (for Monday) through 7 (for Sunday)
-			case 'S':	return ;				//	English ordinal suffix for the day of the month, 2 characters			eg.  	st, nd, rd or th. Works well with j
-			case 'w':	return ;				//	Numeric representation of the day of the week			eg. 0 (for Sunday) through 6 (for Saturday)
-			case 'z':	return ;				//	 	The day of the year (starting from 0)			eg. 0 through 365
-			case 'W':	return ;				//	ISO-8601 week number of year, weeks starting on Monday			eg. Example: 42 (the 42nd week in the year)
-			case 'F':	return ;				//	A full textual representation of a month, such as January or March			eg. January through December
-			case 'm':	return ;				//	Numeric representation of a month, with leading zeros			eg. 01 through 12
-			case 'M':	return ;				//	A short textual representation of a month, three letters			eg. Jan through Dec
-			case 'n':	return ;				//	Numeric representation of a month, without leading zeros			eg. 1 through 12
-			case 't':	return ;				//	Number of days in the given month			eg. 28 through 31
-			case 'L':	return ;				//	Whether it's a leap year			eg. 1 if it is a leap year, 0 otherwise.
+			case 'S':	return ;				//	English ordinal suffix for the day of the month, 2 characters						eg.	st, nd, rd or th. Works well with j
+			case 'w':	return ;				//	Numeric representation of the day of the week										eg. 0 (for Sunday) through 6 (for Saturday)
+			case 'z':	return ;				//	The day of the year (starting from 0)												eg. 0 through 365
+			case 'W':	return ;				//	ISO-8601 week number of year, weeks starting on Monday								eg. Example: 42 (the 42nd week in the year)
+			case 'F':	return ;				//	A full textual representation of a month, such as January or March					eg. January through December
+			case 'm':	return ;				//	Numeric representation of a month, with leading zeros								eg. 01 through 12
+			case 'M':	return ;				//	A short textual representation of a month, three letters							eg. Jan through Dec
+			case 'n':	return ;				//	Numeric representation of a month, without leading zeros							eg. 1 through 12
+			case 't':	return ;				//	Number of days in the given month													eg. 28 through 31
+			case 'L':	return ;				//	Whether it's a leap year															eg. 1 if it is a leap year, 0 otherwise.
 			case 'o':	return ;				//	ISO-8601 week-numbering year. This has the same value as Y, except that if the ISO week number (W) belongs to the previous or next year, that year is used instead. (added in PHP 5.1.0)			eg. Examples: 1999 or 2003
-			case 'Y':	return ;				//	A full numeric representation of a year, 4 digits			eg. Examples: 1999 or 2003
-			case 'y':	return ;				//	A two digit representation of a year			eg. Examples: 99 or 03
+			case 'Y':	return ;				//	A full numeric representation of a year, 4 digits									eg. Examples: 1999 or 2003
+			case 'y':	return ;				//	A two digit representation of a year												eg. Examples: 99 or 03
+			case 'U':	return ;				//	Seconds since the Unix Epoch (January 1 1970 00:00:00 GMT)							eg. See also time()
+		*/
 
-			//	`time` related formats are missing!
+		if ( ! ctype_lower($name))
+			$name = strtolower($name);
 
-			case 'U':	return ;				//	Seconds since the Unix Epoch (January 1 1970 00:00:00 GMT)			eg. See also time()
+		//	@link	http://www.tutorialspoint.com/mysql/mysql-date-time-functions.htm
+		//	@link	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html
 
-			case 'quarter':	return $this->month / 4 + 1;
+		switch ($name)
+		{
+			case 'dayname':			return $this->date->format('l');		//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_dayname			MySQL: Returns the name of the weekday for date. The language used for the name is controlled by the value of the lc_time_names system variable
+			case 'dayofweek':		return $this->date->format('w') + 1;	//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_dayofweek			MySQL: 1 = Sunday, 2 = Monday, …, 7 = Saturday		'w' = 0 (for Sunday) through 6 (for Saturday)
+			case 'dayofmonth':		return $this->date->format('j');		//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_dayofmonth		MySQL: Returns the day of the month for date, in the range 1 to 31, or 0 for dates such as '0000-00-00' or '2008-00-00' that have a zero day part.
+			case 'dayofyear':		return $this->date->format('z') + 1;	//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_dayofyear			MySQL: Returns the day of the year for date, in the range 1 to 366.
+			case 'monthname':		return $this->date->format('F');		//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_monthname			MySQL: Returns the full name of the month for date. The language used for the name is controlled by the value of the lc_time_names system variable
+			case 'timestamp':		return $this->date->format('U');		//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_timestamp			MySQL: With a single argument, this function returns the date or datetime expression expr as a datetime value. With two arguments, it adds the time expression expr2 to the date or datetime expression expr1 and returns the result as a datetime value.
+			case 'unix_timestamp':	return $this->date->format('U');		//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_unix-timestamp	MySQL: If called with no argument, returns a Unix timestamp (seconds since '1970-01-01 00:00:00' UTC).
+			case 'to_days':			break;									//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_to-days			MySQL: Given a date date, returns a day number (the number of days since year 0).
+			case 'utc_date':		return $this->date->format('Y-m-d');	//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_utc-date			MySQL: Returns the current UTC date as a value in 'YYYY-MM-DD' or YYYYMMDD format, depending on whether the function is used in a string or numeric context.
+			case 'utc_time':		return $this->date->format('H:i:s');	//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_utc-time			MySQL: Returns the current UTC time as a value in 'HH:MM:SS'
+			case 'utc_timestamp':	return $this->date->format('Y-m-d H:i:s');	//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_utc-timestamp	MySQL: Returns the current UTC date and time as a value in 'YYYY-MM-DD HH:MM:SS' or YYYYMMDDHHMMSS format, depending on whether the function is used in a string or numeric context.
+			case 'quarter':			return $this->date->format('m') / 4 + 1;	//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_quarter		MySQL: Returns the quarter of the year for date, in the range 1 to 4.
+			case 'week':			break;									//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_week				MySQL: This function returns the week number for date. The two-argument form of WEEK() enables you to specify whether the week starts on Sunday or Monday and whether the return value should be in the range from 0 to 53 or from 1 to 53. If the mode argument is omitted, the value of the default_week_format system variable is used. See Section 5.1.5, “Server System Variables”.
+			case 'weekday':			return $this->date->format('N') - 1;	//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_weekday			MySQL: Returns the weekday index for date (0 = Monday, 1 = Tuesday, … 6 = Sunday).
+			case 'weekofyear':		break;									//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_weekofyear		MySQL: Returns the calendar week of the date as a number in the range from 1 to 53. WEEKOFYEAR() is a compatibility function that is equivalent to WEEK(date,3).
+			case 'yearweek':		break;									//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_yearweek			MySQL: Returns year and week for a date. The year in the result may be different from the year in the date argument for the first and the last week of the year.
+			case 'date':			return $this->date->format('Y-m-d');	//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_date				MySQL: Extracts the date part of the date or datetime expression expr.
 
-			default:
+			case 'age':				return $this->date->format('Y-m-d');
 
-				if ( ! ctype_upper($name))
-					$name = strtoupper($name);
+				throw new \InvalidArgumentException('TODO: Property ->' . $name . ' not implemented yet');
 
-				//	MySQL related values:
-				switch (strtoupper($name))
-				{
-					case 'DAYNAME':		//	https://dev.mysql.com/doc/refman/5.5/en/date-and-time-functions.html#function_dayname
-					case 'DAYOFWEEK':
-					case 'DAYOFMONTH':
-					case 'DAYOFYEAR':
+			//	strtolower($name) versions
+			case 'year':			return $this->date->format('Y');
+			case 'month':			return $this->date->format('m');
+			case 'day':				return $this->date->format('d');
 
-					//--- Start of alias or mixed-case properties ---//
-					case 'YEAR':		return substr($this->str, 0, 4);
-					case 'MONTH':		return substr($this->str, 5, 2);
-					case 'DAY':			return substr($this->str, 8, 2);
-				}
-
-				$name = strtolower($name);
-
-				if (self::$hashAlgos === null)
-					self::$hashAlgos = array_flip(hash_algos());	//	set the hash algorithms as keys for faster lookup with isset() instead of in_array()!
-
-				if (isset(self::$hashAlgos[$name]))					//	we converted the hash name to lowercase above so we can safely support this: $this->Sha256
-					return hash($name, $this->str);
+			case 'hour':			return $this->date->format('G');			//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_hour				MySQL: Returns the hour for time. The range of the return value is 0 to 23 for time-of-day values. However, the range of TIME values actually is much larger, so HOUR can return values greater than 23.
+			case 'minute':			return $this->date->format('i');			//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_minute			MySQL: Returns the minute for time, in the range 0 to 59.
+			case 'second':			return $this->date->format('s');			//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_hour				MySQL: Returns the second for time, in the range 0 to 59.
 		}
+
+		throw new \InvalidArgumentException('Property ->' . $name . ' does not exist!');
 	}
 
-	public function getIterator()
+
+	function __set($name, $value)
 	{
-		return new \Twister\DateIterator($this->str);
+		switch ($name)
+		{
+			case 'year':
+			case 'month':
+			case 'day':
+
+				break;
+
+			case 'timestamp':
+				$this->date->setTimestamp($value);
+				break;
+
+			case 'day':
+			case 'day':
+		}
+
+		throw new \InvalidArgumentException('Property ->' . $name . ' cannot be set!');
 	}
+
 
 	public function getYear()
 	{
-		return substr($this->str, 0, 4);
+		return $this->date->format('Y');
 	}
 
 	public function getMonth()
 	{
-		return substr($this->str, 5, 2);
+		return $this->date->format('m');
 	}
 
 	public function getDay()
 	{
-		return substr($this->str, 8, 2);
+		return $this->date->format('d');
 	}
 
-	static function curdate($format = 'Y-m-d')
+	public function getHour()
 	{
-		//static $curdate = new static(date('Y-m-d'));
-		//return $curdate;
-
-		//	alternative
-		return new static(date($format));
+		return $this->date->format('H');
 	}
+
+	public function getMinute()
+	{
+		return $this->date->format('i');
+	}
+
+	public function getSecond()
+	{
+		return $this->date->format('s');
+	}
+
+	public function getHours()		//	@alias getHour()
+	{
+		return $this->date->format('H');
+	}
+
+	public function getMinutes()	//	@alias getMinute()
+	{
+		return $this->date->format('i');
+	}
+
+	public function getSeconds()	//	@alias getSecond()
+	{
+		return $this->date->format('s');
+	}
+
+	/**
+	 *	'D' == A textual representation of a day, three letters									Mon through Sun
+	 *	'l' == A full textual representation of the day of the week								Sunday through Saturday
+	 *	'N' == ISO-8601 numeric representation of the day of the week (added in PHP 5.1.0)		1 (for Monday) through 7 (for Sunday)
+	 *	'w' == Numeric representation of the day of the week									0 (for Sunday) through 6 (for Saturday)
+	 */
+	public function getDayOfWeek($format = 'D')
+	{
+		return $this->date->format($format);
+	}
+
+
+	//	CURDATE includes timezone, use UTC_DATE() for UTC date
+	public static function curdate()
+	{
+		return new static(date('Y-m-d'));
+	}
+
+
+	public static function utc_date()
+	{
+		return new static(gmdate('Y-m-d'));
+	}
+
+
+	public static function utcDate()
+	{
+		return new static(gmdate('Y-m-d'));
+	}
+
+
+    /**
+     *	Create a Twister\DateTime instance from the current date and time.
+     *
+     *	@param \DateTimeZone|string|null $tz
+     *
+     *	@return static
+     */
+    public static function now()
+    {
+        return new static(date('Y-m-d'));
+    }
+
 
 	/**
 	 *	Returns true if the string contains a date in the format 'YYYY-MM-DD' AND is a valid Gregorian date
@@ -830,3 +1119,4 @@ class Date implements IteratorAggregate, ArrayAccess
 }
 
 \Twister\Date::$utc = new \DateTimeZone('UTC');
+\Twister\Date::$p1d = new \DateInterval('P1D');

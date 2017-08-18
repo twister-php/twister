@@ -2,7 +2,41 @@
 
 namespace Twister;
 
-use ArrayAccess;
+use \DateTime as Dt;			//	http://php.net/manual/en/class.datetime.php
+use \DateInterval;				//	http://php.net/manual/en/class.dateinterval.php
+use \DateTimeZone;				//	http://php.net/manual/en/class.datetimezone.php
+
+use \ArrayAccess;				//	http://php.net/manual/en/class.arrayaccess.php					Interface to provide accessing objects as arrays.
+use \IteratorAggregate;			//	http://php.net/manual/en/class.iteratoraggregate.php			Interface to create an external Iterator.
+use \Closure;
+
+use \InvalidArgumentException;	//	http://php.net/manual/en/class.invalidargumentexception.php		Exception thrown if an argument is not of the expected type.
+
+/**
+ *	@method int getDay() Get day of month.
+ *	@method int getMonth() Get the month.
+ *	@method int getYear() Get the year.
+ *	@method int getHour() Get the hour.
+ *	@method int getMinute() Get the minutes.
+ *	@method int getSecond() Get the seconds.
+ *	@method string getDayOfWeek() Get the day of the week, e.g., Monday.
+ *	@method int getDayOfWeekAsNumeric() Get the numeric day of week.
+ *	@method int getDaysInMonth() Get the number of days in the month.
+ *	@method int getDayOfYear() Get the day of the year.
+ *	@method string getDaySuffix() Get the suffix of the day, e.g., st.
+ *	@method bool isLeapYear() Determines if is leap year.
+ *	@method string isAmOrPm() Determines if time is AM or PM.
+ *	@method bool isDaylightSavings() Determines if observing daylight savings.
+ *	@method int getGmtDifference() Get difference in GMT.
+ *	@method int getSecondsSinceEpoch() Get the number of seconds since epoch.
+ *	@method string getTimezoneName() Get the timezone name.
+ *	@method setDay(int $day) Set the day of month.
+ *	@method setMonth(int $month) Set the month.
+ *	@method setYear(int $year) Set the year.
+ *	@method setHour(int $hour) Set the hour.
+ *	@method setMinute(int $minute) Set the minutes.
+ *	@method setSecond(int $second) Set the seconds.
+ */
 
 /*
 use ArrayAccess;				//	http://php.net/manual/en/class.arrayaccess.php					Interface to provide accessing objects as arrays.
@@ -23,524 +57,856 @@ use OverflowException;			//	http://php.net/manual/en/class.overflowexception.php
 use UnderflowException;			//	http://php.net/manual/en/class.underflowexception.php			Exception thrown when performing an invalid operation on an empty container, such as removing an element.
 */
 
-class DateTime implements Countable, IteratorAggregate, ArrayAccess
+class DateTime extends Dt implements ArrayAccess, IteratorAggregate
 {
+	private static $date	=	null;	//	block it to catch errors!
+
+
 	/**
-	 * An instance's string.
+	 *	Default DateTimeZone
 	 *
-	 * @var string
+	 *	@var	\DateTimeZone
 	 */
-	protected $str;
+	public static $dtz	=	null;
+
 
 	/**
-	 *  Modified by Trevor Herselman
-	 *  Used when mapping a string to boolean with toBoolean()
+	 *	'UTC' DateTimeZone
 	 *
-	 *  @var string
+	 *	@var	\DateTimeZone
 	 */
-	private static $boolMap = [
-				'true'  => true,
-				'1'     => true,
-				'on'    => true,
-				'yes'   => true,
-				'y'     => true,	//	added by Trevor Herselman
-				'false' => false,
-				'0'     => false,
-				'off'   => false,
-				'no'    => false,
-				'n'     => false	//	added by Trevor Herselman
-			];
+	public static $utc	=	null;
 
-	private static $charsArray;
 
 	/**
-	 *  Idea taken from CakePHP: https://api.cakephp.org/2.3/class-CakeRequest.html#$_detectors
-	 *                           https://api.cakephp.org/2.3/source-class-CakeRequest.html#92-117
+	 *	'P1D' DateInterval
 	 *
-	 *	@var mixed[] Array of built in detectors used with is($type) or is$type(), can be modified with addDetector().
+	 *	@var	\DateInterval
 	 */
-	private static $_detectors = null;	//	['dotcom' => function(&$uri){return substr($uri->host, -4) === '.com'}] eg. isDotCom() || is('DotCom') || is('.com') (the '.com' version cannot be tested with is.com()!)
-										//	['domain' => function(&$uri, $domain){return substr($uri->host, -strlen($uri->host)) === $domain}]	//	isDomain('example.com') || isDomain('.com') || is('domain', '.com')
+	public static $p1d	=	null;
+
 
 	/**
-	 *  Array of supported hash algoithms, initialized to hash_algos() on first use!
-	 *      Used when generating dynamic hash properties eg. $str->md5
-	 *      Some algorithms cannot be used such as `gost-crypto`, `tiger128,3` etc.
-	 *			because of invalid characters in the name.
-	 *  http://php.net/manual/en/function.hash-algos.php
-	 */
-	private static $hashAlgos = null;
-
-	/**
-	 * Initializes a Stringy object and assigns both str and encoding properties
-	 * the supplied values. $str is cast to a string prior to assignment, and if
-	 * $encoding is not specified, it defaults to mb_internal_encoding(). Throws
-	 * an InvalidArgumentException if the first argument is an array or object
-	 * without a __toString method.
+	 *	Interval Cache
 	 *
-	 * @param  mixed  $str      Value to modify, after being cast to string
-	 * @param  string $encoding The character encoding
-	 * @throws \InvalidArgumentException if an array or object without a
-	 *         __toString method is passed as the first argument
+	 *	@var	\DateInterval[]
 	 */
-	public function __construct($str = '')
+	public static $intervals	=	null;
+
+
+	/**
+	 *	@var	string
+	 */
+	const DEFAULT_FORMAT = 'Y-m-d H:i:s'; // 'jS F, Y \a\\t g:ia';
+
+	/**
+	 *	Default format used by the __toString() magic method
+	 *
+	 *	@var	string
+	 */
+	public static $format = self::DEFAULT_FORMAT;
+
+
+
+	/**
+	 *	Create a new Twister\DateTime instance.
+	 *
+	 *	@link	http://php.net/manual/en/datetime.construct.php
+	 *
+	 *	@param \DateTime|string|null     $date
+	 *	@param \DateTimeZone|string|null $tz
+	 */
+	public function __construct(...$params)
 	{
-		if ( ! is_string($str)) {
-			if (is_array($str)) {
-				throw new InvalidArgumentException('Passed value cannot be an array');
-			} elseif (is_object($str) && !method_exists($str, '__toString')) {
-				throw new InvalidArgumentException('Passed object must have a __toString method');
-			}
-		}
+parent::__construct(...$params);
+return;
 
-        $this->str = (string) $str;
-	}
-
-	/**
-	 * Function added by Trevor Herselman
-	 * Concats a string and returns the new one.
-	 * Actually, it is the same as the dot operator.
-	 * @param string $args,... Variable number of strings to concatenate. Returns a single Mb object.
-	 * @return static A Stringy object
-	 */
-	public function concat()
-	{
-		$args = func_get_args();
-		$str = $this->str;
-		foreach ($args as $arg)
+		switch (count($params))
 		{
-			$str .= (string) $arg;
+			case 1: //	'2017-01-01'
+			case 2:	//	'2017-01-01', $tz
+			case 3:	//	$year, $month, $day
+			case 4:	//	$year, $month, $day, $tz
+			case 5:	//	$year, $month, $day, $hour, $minute							// not useful
+			case 6:	//	$year, $month, $day, $hour, $minute, $second
+			case 7:	//	$year, $month, $day, $hour, $minute, $second, $timezone
 		}
-		return new static($str);
+		return new static(new \DateTime($time, $timezone === null ? self::$utc : (is_string($timezone) ? new \DateTimeZone($timezone) : $timezone)));
+
+
+		if (is_string($date))
+		{
+		//	$this->___date = new \DateTime($date, self::$dtz);
+		}
+		else if ($date instanceof \DateTime)
+		{
+		//	$this->___date = $date;
+		}
+		else if (is_object($date))
+		{
+		//	$this->date = new \DateTime((string) $date, self::$utc);
+		}
+		else if (is_array($date))
+		{
+			throw new \InvalidArgumentException('Array constructor not implemented');
+		}
+		else
+		{
+			throw new \InvalidArgumentException(sprintf(
+						'Invalid type passed to Date constructor; expecting a string or DateTime object, received "%s"; use normalize() to create Date objects from various formats',
+						(is_object($date) ? get_class($date) : gettype($date))
+					));
+		}
 	}
 
-	/**
-	 * Creates a Stringy object and assigns both str and encoding properties
-	 * the supplied values. $str is cast to a string prior to assignment, and if
-	 * $encoding is not specified, it defaults to mb_internal_encoding(). It
-	 * then returns the initialized object. Throws an InvalidArgumentException
-	 * if the first argument is an array or object without a __toString method.
-	 *
-	 * @param  mixed  $str      Value to modify, after being cast to string
-	 * @param  string $encoding The character encoding
-	 * @return static A Stringy object
-	 * @throws \InvalidArgumentException if an array or object without a
-	 *         __toString method is passed as the first argument
-	 */
-	public static function create($str = '')
-	{
-		return new static($str);
-	}
 
 	/**
-	 * Returns the value in $str.
+	 *	Returns the value in $str.
 	 *
-	 * @return string The current value of the $str property
+	 *	@return string The current value of the $str property
 	 */
 	public function __toString()
 	{
-		return $this->str;
+		return parent::format(static::$format);
 	}
 
+
 	/**
-	 * Returns a new string with $string appended.
+	 *	Returns a formatted string
 	 *
-	 * @param  string $string The string to append
-	 * @return static Object with appended $string
+	 *	@return string
 	 */
-	public function append($string)
+	public function __invoke($format = 'Y-m-d H:i:s')
 	{
-		return static::create($this->str . $string);
-	}
-
-	/**
-	 * Returns the character at $index, with indexes starting at 0.
-	 *
-	 * @param  int    $index Position of the character
-	 * @return static The character at $index
-	 */
-	public function at($index)
-	{
-		return $this->str[$index];
-	}
-
-	/**
-	 * Returns the substring between $start and $end, if found, or an empty
-	 * string. An optional offset may be supplied from which to begin the
-	 * search for the start string.
-	 *
-	 * @param  string $start  Delimiter marking the start of the substring
-	 * @param  string $end    Delimiter marking the end of the substring
-	 * @param  int    $offset Index from which to begin the search
-	 * @return static Object whose $str is a substring between $start and $end
-	 */
-	public function between($start, $end, $offset = 0)
-	{
-		trigger_error('Function ' . __METHOD__ . ' not implemented yet');
-
-		$startIndex = $this->indexOf($start, $offset);
-		if ($startIndex === false) {
-			return static::create('', $this->encoding);
-		}
-
-		$substrIndex = $startIndex + \mb_strlen($start, $this->encoding);
-		$endIndex = $this->indexOf($end, $substrIndex);
-		if ($endIndex === false) {
-			return static::create('', $this->encoding);
-		}
-
-		return $this->substr($substrIndex, $endIndex - $substrIndex);
-	}
-
-	/**
-	 * Returns a camelCase version of the string. Trims surrounding spaces,
-	 * capitalizes letters following digits, spaces, dashes and underscores,
-	 * and removes spaces, dashes, as well as underscores.
-	 *
-	 * @return static Object with $str in camelCase
-	 */
-	public function camelize()
-	{
-		trigger_error('Function ' . __METHOD__ . ' not implemented yet');
-
-		$encoding = $this->encoding;
-		$stringy = $this->trim()->lowerCaseFirst();
-		$stringy->str = preg_replace('/^[-_]+/', '', $stringy->str);
-
-		$stringy->str = preg_replace_callback(
-			'/[-_\s]+(.)?/u',
-			function ($match) use ($encoding) {
-				if (isset($match[1])) {
-					return \mb_strtoupper($match[1], $encoding);
-				}
-
-				return '';
-			},
-			$stringy->str
-		);
-
-		$stringy->str = preg_replace_callback(
-			'/[\d]+(.)?/u',
-			function ($match) use ($encoding) {
-				return \mb_strtoupper($match[0], $encoding);
-			},
-			$stringy->str
-		);
-
-		return $stringy;
-	}
-
-	/**
-	 * Returns an array consisting of the characters in the string.
-	 *
-	 * @return array An array of string chars
-	 */
-	public function chars()
-	{
-		trigger_error('Function ' . __METHOD__ . ' not implemented yet');
-
-		return str_split($this->str);
-	}
-
-	/**
-	 * Trims the string and replaces consecutive whitespace characters with a
-	 * single space. This includes tabs and newline characters, as well as
-	 * multibyte whitespace such as the thin space and ideographic space.
-	 *
-	 * @return static Object with a trimmed $str and condensed whitespace
-	 */
-	public function collapseWhitespace()
-	{
-		trigger_error('Function ' . __METHOD__ . ' not implemented yet');
-
-		return $this->regexReplace('[[:space:]]+', ' ')->trim();
-	}
-
-	/**
-	 * Returns true if the string contains $needle, false otherwise. By default
-	 * the comparison is case-sensitive, but can be made insensitive by setting
-	 * $caseSensitive to false.
-	 *
-	 * @param  string $needle        Substring to look for
-	 * @param  bool   $caseSensitive Whether or not to enforce case-sensitivity
-	 * @return bool   Whether or not $str contains $needle
-	 */
-	public function contains($needle, $caseSensitive = true)
-	{
-		return	($caseSensitive ?
-				\strpos($this->str, $needle, 0) :
-				\stripos($this->str, $needle, 0)) !== false;
-	}
-
-	/**
-	 * Returns true if the string contains all $needles, false otherwise. By
-	 * default the comparison is case-sensitive, but can be made insensitive by
-	 * setting $caseSensitive to false.
-	 *
-	 * @param  string[] $needles       Substrings to look for
-	 * @param  bool     $caseSensitive Whether or not to enforce case-sensitivity
-	 * @return bool     Whether or not $str contains $needle
-	 */
-	public function containsAll($needles, $caseSensitive = true)
-	{
-		trigger_error('Function ' . __METHOD__ . ' not implemented yet');
-
-		if (empty($needles)) {
-			return false;
-		}
-
-		foreach ($needles as $needle) {
-			if (!$this->contains($needle, $caseSensitive)) {
-				return false;
-			}
-		}
-
-		return true;
-	}
-
-	/**
-	 * Returns true if the string contains any $needles, false otherwise. By
-	 * default the comparison is case-sensitive, but can be made insensitive by
-	 * setting $caseSensitive to false.
-	 *
-	 * @param  string[] $needles       Substrings to look for
-	 * @param  bool     $caseSensitive Whether or not to enforce case-sensitivity
-	 * @return bool     Whether or not $str contains $needle
-	 */
-	public function containsAny($needles, $caseSensitive = true)
-	{
-		trigger_error('Function ' . __METHOD__ . ' not implemented yet');
-
-		if (empty($needles)) {
-			return false;
-		}
-
-		foreach ($needles as $needle) {
-			if ($this->contains($needle, $caseSensitive)) {
-				return true;
-			}
-		}
-
-		return false;
-	}
-
-	/**
-	 * Returns the length of the string, implementing the countable interface.
-	 *
-	 * @return int The number of characters in the string, given the encoding
-	 */
-	public function count()
-	{
-		return strlen($this->str);
-	}
-
-	/**
-	 * Returns the number of occurrences of $substring in the given string.
-	 * By default, the comparison is case-sensitive, but can be made insensitive
-	 * by setting $caseSensitive to false.
-	 *
-	 * @param  string $substring     The substring to search for
-	 * @param  bool   $caseSensitive Whether or not to enforce case-sensitivity
-	 * @return int    The number of $substring occurrences
-	 */
-	public function countSubstr($substring, $caseSensitive = true)
-	{
-		trigger_error('Function ' . __METHOD__ . ' not implemented yet');
-
-		if ($caseSensitive) {
-			return \mb_substr_count($this->str, $substring, $this->encoding);
-		}
-
-		$str = \mb_strtoupper($this->str, $this->encoding);
-		$substring = \mb_strtoupper($substring, $this->encoding);
-
-		return \mb_substr_count($str, $substring, $this->encoding);
-	}
-
-	/**
-	 * Returns a lowercase and trimmed string separated by dashes. Dashes are
-	 * inserted before uppercase characters (with the exception of the first
-	 * character of the string), and in place of spaces as well as underscores.
-	 *
-	 * @return static Object with a dasherized $str
-	 */
-	public function dasherize()
-	{
-		return $this->delimit('-');
-	}
-
-	/**
-	 * Returns a lowercase and trimmed string separated by the given delimiter.
-	 * Delimiters are inserted before uppercase characters (with the exception
-	 * of the first character of the string), and in place of spaces, dashes,
-	 * and underscores. Alpha delimiters are not converted to lowercase.
-	 *
-	 * @param  string $delimiter Sequence used to separate parts of the string
-	 * @return static Object with a delimited $str
-	 */
-	public function delimit($delimiter)
-	{
-		$str = \preg_replace('~([^A-Z\b])([A-Z])~', '\1-\2', \trim($this->str));
-		$str = \preg_replace('~[-_\s]+~', $delimiter, \strtolower($str));
-
-		return new static($str);
-	}
-
-	/**
-	 * Returns true if the string ends with $substring, false otherwise. By
-	 * default, the comparison is case-sensitive, but can be made insensitive
-	 * by setting $caseSensitive to false.
-	 *
-	 * @param  string $substring     The substring to look for
-	 * @param  bool   $caseSensitive Whether or not to enforce case-sensitivity
-	 * @return bool   Whether or not $str ends with $substring
-	 */
-	public function endsWith($substring, $caseSensitive = true)
-	{
-		trigger_error('Function ' . __METHOD__ . ' not implemented yet');
-
-		$substringLength = \mb_strlen($substring, $this->encoding);
-		$strLength = strlen($this->str);
-
-		$endOfStr = \mb_substr($this->str, $strLength - $substringLength,
-			$substringLength, $this->encoding);
-
-		if (!$caseSensitive) {
-			$substring = \mb_strtolower($substring, $this->encoding);
-			$endOfStr = \mb_strtolower($endOfStr, $this->encoding);
-		}
-
-		return (string) $substring === $endOfStr;
-	}
-
-	/**
-	 * Returns true if the string ends with any of $substrings, false otherwise.
-	 * By default, the comparison is case-sensitive, but can be made insensitive
-	 * by setting $caseSensitive to false.
-	 *
-	 * @param  string[] $substrings    Substrings to look for
-	 * @param  bool     $caseSensitive Whether or not to enforce
-	 *                                 case-sensitivity
-	 * @return bool     Whether or not $str ends with $substring
-	 */
-	public function endsWithAny($substrings, $caseSensitive = true)
-	{
-		trigger_error('Function ' . __METHOD__ . ' not implemented yet');
-
-		if (empty($substrings)) {
-			return false;
-		}
-
-		foreach ($substrings as $substring) {
-			if ($this->endsWith($substring, $caseSensitive)) {
-				return true;
-			}
-		}
-
-		return false;
-	}
-
-	/**
-	 * Ensures that the string begins with $substring. If it doesn't, it's
-	 * prepended.
-	 *
-	 * @param  string $substring The substring to add if not present
-	 * @return static Object with its $str prefixed by the $substring
-	 */
-	public function ensureLeft($substring)
-	{
-		trigger_error('Function ' . __METHOD__ . ' not implemented yet');
-
-		$stringy = static::create($this->str, $this->encoding);
-
-		if (!$stringy->startsWith($substring)) {
-			$stringy->str = $substring . $stringy->str;
-		}
-
-		return $stringy;
-	}
-
-	/**
-	 * Ensures that the string ends with $substring. If it doesn't, it's
-	 * appended.
-	 *
-	 * @param  string $substring The substring to add if not present
-	 * @return static Object with its $str suffixed by the $substring
-	 */
-	public function ensureRight($substring)
-	{
-		trigger_error('Function ' . __METHOD__ . ' not implemented yet');
-
-		$stringy = static::create($this->str, $this->encoding);
-
-		if (!$stringy->endsWith($substring)) {
-			$stringy->str .= $substring;
-		}
-
-		return $stringy;
-	}
-
-	/**
-	 * Returns the first $n characters of the string.
-	 *
-	 * @param  int    $n Number of characters to retrieve from the start
-	 * @return static Object with its $str being the first $n chars
-	 */
-	public function first($n)
-	{
-		return new static($n <= 0 ? null : \substr($this->str, 0, $n));
+		return parent::format($format);
 	}
 
 
 	/**
-	 * Returns a new ArrayIterator, thus implementing the IteratorAggregate
-	 * interface. The ArrayIterator's constructor is passed an array of chars
-	 * in the string. This enables the use of foreach with instances of S.
+	 *	Implements IteratorAggregate
 	 *
-	 * @return \ArrayIterator An iterator for the characters in the string
+	 *	@link	http://php.net/manual/en/class.iteratoraggregate.php
+	 *
+	 *	@return \Twister\DatePeriod
 	 */
 	public function getIterator()
 	{
-		return new ArrayIterator(str_split($this->str));
+		return new \Twister\DatePeriod($this);
 	}
 
+
 	/**
-	 * Returns true if the string contains a date in the format 'YYYY-MM-DD'
-	 * Alternative patterns:
-	 *		'/^\d{4}-\d{2}-\d{2} [0-2][0-3]:[0-5][0-9]:[0-5][0-9]$/'
-	 * 		'/^\d\d\d\d-\d\d-\d\d$/'
-	 * 		'/^([0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[1-2][0-9]|3[0-1])$/'
+	 *	Gets a date clone
+	 *
+	 *	@return static
+	 */
+	public function copy()
+	{
+		return clone $this;
+	}
+
+
+	/**
+	 *	Gets a date clone
+	 *
+	 *	@alias	copy()
+	 *
+	 *	@return static
+	 */
+	public function clone()
+	{
+		return clone $this;
+	}
+
+
+	/**
+	 *	Wrapper around \DateTime->setDate() for the current date
+	 *
+	 *	@link http://php.net/manual/en/datetime.setdate.php
+	 *
+	 *	`Resets the current date of the DateTime object to a different date.`
+	 *
+	 *	In addition to the official params for setDate(),
+	 *		this function will also extract a date from a string
+	 *
+     *	@param	int|string	$year    |  $date string
+     *	@param	int|null	$month
+     *	@param	int|null	$day
+	 *
+	 *	@throws \InvalidArgumentException
+	 *
+	 *	@return static
+	 */
+	public function setDateFromString(...$params)
+	{
+		switch (count($params))
+		{
+			case 3:
+				return parent::setDate(...$params);
+			case 1:
+				$param = $params[0];
+				if (is_string($param)) {
+					if (preg_match('~(\d\d\d\d)-(\d\d)-(\d\d)~', $param, $values) === 1) {
+						return parent::setDate($values[1], $values[2], $values[3]);	//	$values[0] is the initial preg_match() string
+					}
+					//	@todo ... support extracting dates from regular strings with getdate(), date_parse() etc.
+					//	@todo ... support relative strings like '1 day' ... '+1 day', 'next monday' etc.
+					throw new \InvalidArgumentException("Invalid string format `{$param}` passed to setDate(); expecting `YYYY-MM-DD`");
+				}
+				else if (is_object($param)) {
+					if ($param instanceof \DateTime || $param instanceof \Twister\DateTime) {
+						return parent::setDate(...explode('-', $param->format('Y-m-d')));
+					} else {
+					//	if ( ! method_exists($param1, '__toString'))
+					//		throw new \InvalidArgumentException('Object passed to setDate() must have a __toString method');
+						//	@todo ... currently not supported, I would have to extract the date from the object with (string)
+					//	$this->date = new \DateTime((string) $param1, self::$utc);
+					}
+				}
+				throw new \InvalidArgumentException(sprintf(
+							'Invalid type passed to ->setDate(), received "%s"',
+							(is_object($param) ? get_class($param) : gettype($param))
+						));
+		}
+		throw new \InvalidArgumentException('Invalid number or type of params for setDate(); requires one Date string or 3x params for year, month, day');
+	}
+
+
+	/**
+	 *	Wrapper around \DateTime->setTime() for the current time
+	 *
+	 *	@link	http://php.net/manual/en/datetime.settime.php
+	 *
+	 *	`Resets the current time of the DateTime object to a different time.`
+	 *
+     *	@param	int|string	$hour    |  $time string
+     *	@param	int|null	$minute
+     *	@param	int|null	$second
+	 *
+	 *	@throws \InvalidArgumentException
+	 *
+	 *	@return static
+	 */
+	public function setTimeFromString(...$params)
+	{
+		switch (count($params))
+		{
+			case 3:
+				return parent::setTime(...$params);
+			case 1:
+				$param = $params[0];
+				if (is_string($param))
+				{
+					if (preg_match('~([012]\d):([0-5]\d):([0-5]\d)~', $param, $values) === 1) {
+						return parent::setTime(...array_slice($values, 1, 3));
+					//	return parent::setTime($values[1], $values[2], $values[3]);		//	same thing as above
+					}
+					throw new \InvalidArgumentException("Invalid time format `{$param}` passed to setTime(); expecting `HH:MM:SS`");
+				}
+		}
+		throw new \InvalidArgumentException('Invalid number or type of params for setTime(); requires one Time string or 3x params for hour, minute, second');
+	}
+
+
+	/**
+	 *	Set the date and time all together
+	 *
+	 *	This function also supports sending a single DateTime string in `YYYY-MM-DD HH:MM:SS` format
+	 *
+	 *	@param	int|string  $year     |  $datetime string
+	 *	@param	int         $month
+	 *	@param	int         $day
+	 *	@param	int         $hour
+	 *	@param	int         $minute
+	 *	@param	int         $second = 0
+	 *
+	 *	@throws \InvalidArgumentException
+	 *
+	 *	@return static
+	 */
+	public function setDateTime(...$params)
+	{
+		switch (count($params))
+		{
+			case 5:
+				//	$second is optional in setTime()
+			//	array_push($params, 0);		//	I don't think we need this ... array_slice should pass 2 params to setTime()!
+				//	fallthrough
+			case 6:
+				return parent::setDate(...array_slice($params, 0, 3))->setTime(...array_slice($params, 3, 3));
+			case 1:
+				$param = $params[0];
+				if (is_string($param))
+				{
+					if (preg_match('~(\d\d\d\d)-(\d\d)-(\d\d) ([012]\d):([0-5]\d):([0-5]\d)~', $param, $values) === 1) {
+						return parent::setDate(...array_slice($values, 1, 3))->setTime(...array_slice($values, 4, 3));
+					}
+					throw new \InvalidArgumentException("Invalid DateTime format `{$param}` passed to setDateTime(); expecting `YYYY-MM-DD HH:MM:SS`");
+				}
+		}
+		throw new \InvalidArgumentException('Invalid number or type of params for setDateTime(); requires one DateTime string or 6x params for year, month, day, hour, minute, second');
+	}
+
+
+
+	/**
+	 *	Sets the date and time based on a Unix timestamp.
+	 *
+	 *	@link	http://php.net/manual/en/datetime.settimestamp.php
+	 *
+	 *	@param  int $unixtimestamp
+	 *	@return $this
+	 */
+	public function setTimestamp($unixtimestamp)
+	{
+		return $this->setTimestamp($unixtimestamp);
+	}
+
+
+	/*****************************************************************\
+	 *                    CREATE & CACHE INTERVALS                   *
+	\*****************************************************************/
+
+
+	/**
+	 *	Create a DateInterval from ISO 8601 duration string OR relative parts!
+	 *
+	 *	This method does a small test on the $interval string for `[0] === 'P'`
+	 *
+	 *	@link	http://php.net/manual/en/dateinterval.construct.php
+	 *	@link	http://php.net/manual/en/dateinterval.createfromdatestring.php
+	 *	@link	http://php.net/manual/en/datetime.formats.relative.php
+	 *
+	 *	This function had a significant 30%~50% performance increase over ->modify()
+	 *		still had about 20% increase over creating new DateInterval values in a loop
+	 *
+	 *	@param	string	$interval	Interval string in relative parts format or ISO 8601 duration
+	 *
+	 *	@return DateInterval
+	 */
+	public static function createInterval($interval)
+	{
+		return	isset(static::$intervals[$interval])
+				?	static::$intervals[$interval]
+				:	static::$intervals[$interval] = $interval[0] === 'P'
+					?	new \DateInterval($interval)
+					:	\DateInterval::createFromDateString($interval);
+	}
+
+
+	/**
+	 *	Create a DateInterval from ISO 8601 duration string
+	 *
+	 *	@link	http://php.net/manual/en/dateinterval.construct.php
+	 *
+	 *	@return DateInterval
+	 */
+	public static function createIntervalFromSpec($interval_spec)
+	{
+		return	isset(static::$intervals[$interval_spec])
+				?	static::$intervals[$interval_spec]
+				:	static::$intervals[$interval_spec] = new \DateInterval($interval_spec);
+	}
+
+
+	/**
+	 *	Create a DateInterval from a string of relative parts
+	 *
+	 *	`Uses the normal date parsers and sets up a DateInterval from the relative parts of the parsed string.`
+	 *
+	 *	@link	http://php.net/manual/en/dateinterval.createfromdatestring.php
+	 *	@link	http://php.net/manual/en/datetime.formats.relative.php
+	 *
+	 *	The difference between `DateInterval::createFromDateString` and this method,
+	 *		is that this method includes an interval cache.
+	 *		Every interval string created is cached, so loops are faster!
+	 *
+	 *	@return DateInterval
+	 */
+	public static function createIntervalFromDateString($time)
+	{
+		return	isset(static::$intervals[$time])
+				?	static::$intervals[$time]
+				:	static::$intervals[$time] = \DateInterval::createFromDateString($time);
+	}
+
+
+	/*****************************************************************\
+	 *                  ADDITIONS AND SUBTRACTIONS                   *
+	\*****************************************************************/
+
+
+	/**
+	 *	Wrapper for DateTime::add()
+	 *
+	 *	`Adds an amount of days, months, years, hours, minutes and seconds to a DateTime object`
+	 *
+	 *	NOTE: This function ALSO supports DateInterval strings based on relative parts!
+	 *		ie. the same as ->modify()
+	 *		eg. ->add('1 day')
+	 *			->add('1 month')
+	 *			->add('1 year + 4 days')
+	 *			->add('next Monday 2012-04-01')
+	 *			->add('last day of +1 month')
+	 *
+	 *	@link	http://php.net/manual/en/datetime.formats.relative.php
+	 *
+	 *	Notes on performance benchmarks vs. modify()
+	 *		->add() & ->sub() are +20% faster than ->modify() with new \DateInterval()
+	 *		->add() & ->sub() are +50% faster than ->modify() with existing/cached \DateInterval()
+	 *		Conclusion: ->modify() is slower than ->add() & ->sub() under both conditions
+	 *
+	 *	@link	http://php.net/manual/en/datetime.add.php
+	 *	@link	http://php.net/manual/en/class.dateinterval.php
+	 *	@link	http://php.net/manual/en/dateinterval.construct.php
+	 *	@link	https://en.wikipedia.org/wiki/Iso8601#Durations
+	 *
+	 *	Simple examples:
+	 *		Two days is P2D.
+	 *		Two seconds is PT2S.
+	 *		Six years and five minutes is P6YT5M.
+	 *
+	 *	`Formats are based on the » ISO 8601 duration specification.`
+	 *
+	 *	@param  DateInterval|string  $interval
+	 *
+	 *	@return static
+	 */
+	public function add($interval)
+	{
+		return $this->add($interval instanceof \DateInterval ? $interval : static::createInterval($interval));
+	}
+
+
+	/**
+	 *	Wrapper for DateTime::sub()
+	 *
+	 *	`Subtracts an amount of days, months, years, hours, minutes and seconds from a DateTime object`
+	 *
+	 *	NOTE: This function ALSO supports DateInterval strings based on relative parts!
+	 *		ie. the same as ->modify()
+	 *		eg. ->sub('1 day')
+	 *			->sub('1 month')
+	 *			->sub('1 year + 4 days')
+	 *			->sub('next Monday 2012-04-01')
+	 *			->sub('last day of +1 month')
+	 *
+	 *	Notes on performance benchmarks vs. modify()
+	 *		->add() & ->sub() are +20% faster than ->modify() with new \DateInterval()
+	 *		->add() & ->sub() are +50% faster than ->modify() with existing/cached \DateInterval()
+	 *		Conclusion: ->modify() is slower than ->add() & ->sub() under both conditions
+	 *
+	 *	@link	http://php.net/manual/en/datetime.sub.php
+	 *	@link	http://php.net/manual/en/class.dateinterval.php
+	 *	@link	http://php.net/manual/en/dateinterval.construct.php
+	 *	@link	https://en.wikipedia.org/wiki/Iso8601#Durations
+	 *
+	 *	Simple examples:
+	 *		Two days is P2D.
+	 *		Two seconds is PT2S.
+	 *		Six years and five minutes is P6YT5M.
+	 *
+	 *	`Formats are based on the » ISO 8601 duration specification.`
+	 *
+	 *	@param  DateInterval|string  $interval
+	 *
+	 *	@return static
+	 */
+	public function sub($interval)
+	{
+		return $this->sub($interval instanceof \DateInterval ? $interval : static::createInterval($interval));
+	}
+
+
+	/**
+	 *	Wrapper around \DateTime->format()
+	 *
+	 *	@link	http://php.net/manual/en/datetime.format.php
+	 *
+	 *	@return string
+	 */
+	public function __format($format = 'Y-m-d')
+	{
+		return parent::format($format);
+	}
+
+
+	/**
+	 *	Wrapper around \DateTime->modify()
+	 *
+	 *	->modify() is slower than ->add() & ->sub() under all conditions!
+	 *
+	 *	@link	http://php.net/manual/en/datetime.modify.php
+	 *
+	 *	`Alter the timestamp of a DateTime object by incrementing or decrementing in a format accepted by strtotime().`
+	 *
+	 *	@param  string $modify A date/time string.
+	 *	@return $this
+	 */
+	public function __modify($modify = '+1 day')
+	{
+		$this->modify($modify);
+		return $this;
+	}
+
+
+	/**
+	 *	Create a new Twister\DateTime instance from a specific date and time.
+	 *
+	 *
+	 *	If any of $year, $month or $day are set to null their now() values will be used.
+	 *
+	 *	If $hour is null it will be set to its now() value and the default
+	 *	values for $minute and $second will be their now() values.
+	 *
+	 *	If $hour is not null then the default values for $minute and $second will be 0.
+	 *
+	 *	@link http://php.net/manual/en/datetime.construct.php
+	 *
+	 *	@param int|null                  $year
+	 *	@param int|null                  $month
+	 *	@param int|null                  $day
+	 *	@param int|null                  $hour
+	 *	@param int|null                  $minute
+	 *	@param int|null                  $second
+	 *	@param \DateTimeZone|string|null $tz
+	 *
+	 *	@return static
+	 */
+	public static function create(...$params)
+	{
+		switch (count($params))
+		{
+			case 1: //	'2017-01-01'
+			case 2:	//	'2017-01-01', $tz
+			case 3:	//	$year, $month, $day
+			case 4:	//	$year, $month, $day, $tz
+			case 5:	//	$year, $month, $day, $hour, $minute							// not useful
+			case 6:	//	$year, $month, $day, $hour, $minute, $second
+			case 7:	//	$year, $month, $day, $hour, $minute, $second, $timezone
+		}
+
+		return new static(new \DateTime($time, $timezone === null ? self::$utc : (is_string($timezone) ? new \DateTimeZone($timezone) : $timezone)));
+	}
+
+
+	/**
+	 *	Wrapper around date_parse
+	 *
+	 *	@link	http://php.net/manual/en/function.date-parse.php
+	 *
+	 *
+	 *	@param  mixed  $str      Value to modify, after being cast to string
+	 *	@param  string $encoding The character encoding
+	 *
+	 *	@throws \InvalidArgumentException if an array or object without a
+	 *					__toString method is passed as the first argument
+	 *
+	 *	@return static|null
+	 */
+	public static function __parse($date, &$result = null)							//	WARNING I don't think I  need this ...
+	{
+		$result = date_parse($date);
+
+		if ($result['warning_count'] === 0 && $result['error_count'] === 0)			//	halt, I think there is a faster way to build the DateTime ... just parse it here, check for errors ... then just build it ....
+		{
+			$year		=	$result['year'];
+			$month		=	$result['month'];
+			$day		=	$result['day'];
+			$hour		=	$result['hour'];
+			$minute		=	$result['minute'];
+			$second		=	$result['second'];
+			$fraction	=	$result['fraction'];
+
+			$format		=	null;
+			$value		=	null;
+
+			if (is_numeric($year) && is_numeric($month) && is_numeric($day))
+			{
+				$value	= str_pad($year, 4, '0', STR_PAD_LEFT) . str_pad($month, 3, '-0', STR_PAD_LEFT) . str_pad($day, 3, '-0', STR_PAD_LEFT);
+				$format = 'Y-m-d';
+			}
+
+			if (is_numeric($hour) && is_numeric($minute) && is_numeric($second))
+			{
+				$value	.= str_pad($hour, 2, '0', STR_PAD_LEFT) . str_pad($minute, 3, ':0', STR_PAD_LEFT) . str_pad($second, 3, ':0', STR_PAD_LEFT);
+				$format	.= 'H:i:s';
+			}
+
+			$is_localtime	=	$result['is_localtime'];
+
+			if ($is_localtime)
+			{
+				
+			}
+		}
+
+		return null;
+	}
+
+
+	/**
+	 *	Check if a given value or values are valid
+	 *
+	 *	@link http://php.net/manual/en/function.checkdate.php
+	 *
+	 *	Date::check('0000-00-00')								=== false
+	 *	Date::check('2017-08-05')								=== true
+	 *	Date::check('2017', '08, '05')							=== true
+	 *	Date::check(['2017', '08, '05'])						=== true
+	 *	Date::check([2017, 8, 5])								=== true
+	 *	Date::check(['year' => 2017, 'month' => 8, 'day' => 5])	=== true
+	 *	Date::check([8, 5, 2017])								=== true	- year is 3rd array member, same as `checkdate` and MUST be over 100
+	 *	Date::check([30, 4, 2017])								=== false	- year is 3rd array member, same as `checkdate` BUT `day` MUST be 2nd param and `month` MUST be 3rd param like `checkdate()`
+	 *
+	 *	@param  mixed  $str      Value to modify, after being cast to string
+	 *	@return new Twister\Date instance or false on failure
+	 *	@throws \InvalidArgumentException if an array or object without a
+	 *					__toString method is passed as the first argument
+	 */
+	public static function __check(...$params)
+	{
+		return self::normalize(...$params) !== false;
+	}
+
+
+	public static function check(...$params)					//	dirty check
+	{
+		
+	}
+
+
+	/**
+	 *	Normalize a given value or values to MySQL date format (YYYY-MM-DD)
+	 *
+	 *	@link http://php.net/manual/en/function.checkdate.php
+	 *
+	 *	Date::check('0000-00-00')								=== false
+	 *	Date::check('2017-08-05')								=== true
+	 *	Date::check('2017', '08, '05')							=== true
+	 *	Date::check(['2017', '08, '05'])						=== true
+	 *	Date::check([2017, 8, 5])								=== true
+	 *	Date::check(['year' => 2017, 'month' => 8, 'day' => 5])	=== true
+	 *	Date::check([8, 5, 2017])								=== true	- year is 3rd array member, same as `checkdate` and MUST be over 100
+	 *	Date::check([30, 4, 2017])								=== false	- year is 3rd array member, same as `checkdate` BUT `day` MUST be 2nd param and `month` MUST be 3rd param like `checkdate()`
+	 *
+	 *	@param  mixed  $str      Value to modify, after being cast to string
+	 *	@return new Twister\Date instance or false on failure
+	 *	@throws \InvalidArgumentException if an array or object without a
+	 *					__toString method is passed as the first argument
+	 */
+	public static function __normalize(...$params)									//		I DON'T NEED THIS !?!?
+	{
+		switch (count($params))
+		{
+			case 2:
+				if ( ! is_bool($params[1]))
+				{
+					if (is_string($params[1]))	//	$params[1] can be a format like 'Y-m-d h:i' or whatever, we need to `extract` the date component to match '~^...$~' below
+					{
+						// TODO: extract date from format
+					}
+					return false;
+				}
+				else
+				{
+					if ($params[1] === true)
+					{
+						$date = $params[0];
+						if (is_string($date) && $date === '0000-00-00')
+						{
+							return $date;	// `true` allows 0000-00-00
+						}
+					}
+				}
+				//	fallthrough
+			case 1:
+				$date = $params[0];
+				if (is_string($date))
+				{
+					if (preg_match('~^([1-9]\d\d\d)-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])$~', $date, $matches) === 1)
+					{
+						return checkdate($matches[2], $matches[3], $matches[1]) ? $date : false;	//	checkdate(month, day, year)
+					}
+					else if (preg_match('~([1-9]\d\d\d)[- /.](0[1-9]|1[012])[- /.](0[1-9]|[12][0-9]|3[01])~', $date, $matches) === 1)		//	removed the ~^ ... $~ first & last matches! Also added more delimeters
+					{
+						$date = $matches[1] . '-' . $matches[2] . '-' . $matches[3];
+						return checkdate($matches[2], $matches[3], $matches[1]) ? $date : false;	//	checkdate(month, day, year)
+					}
+					else
+					{
+						//	... can we match other date formats?
+						//	http://php.net/manual/en/function.strtotime.php
+						return false;
+					}
+				}
+				else if (is_array($date))
+				{
+					if (isset($date[0]) && isset($date[1]) && isset($date[2]))
+					{
+						$year	=	$date[0];	//	$date[0] could be month
+						$month	=	$date[1];	//	$date[1] could be day
+						$day	=	$date[2];	//	$date[2] could be year
+						if (is_numeric($year) && is_numeric($month) && is_numeric($day))
+						{
+							if ($day >= 1000 && $year <= 12 && $month <= 31)
+							{
+								//	We switch the year, month, day to month, day, year ... ie. US format
+								$year	=	$date[2];
+								$month	=	$date[0];
+								$day	=	$date[1];
+							}
+						}
+						else
+						{
+							return false;
+						}
+					}
+					else if (isset($date['year']) && isset($date['month']) && isset($date['day']))
+					{
+						$year	=	$date['year'];
+						$month	=	$date['month'];
+						$day	=	$date['day'];
+						if ( ! is_numeric($year) || ! is_numeric($day))
+						{
+							return false;
+						}
+						if ( ! is_numeric($month))
+						{
+							if (is_string($month))
+							{
+								switch (strtolower($month))
+								{
+									case 'jan'; $month =  1; break;
+									case 'feb'; $month =  2; break;
+									case 'mar'; $month =  3; break;
+									case 'apr'; $month =  4; break;
+									case 'may'; $month =  5; break;
+									case 'jun'; $month =  6; break;
+									case 'jul'; $month =  7; break;
+									case 'aug'; $month =  8; break;
+									case 'sep'; $month =  9; break;
+									case 'oct'; $month = 10; break;
+									case 'nov'; $month = 11; break;
+									case 'dec'; $month = 12; break;
+									case 'january';		$month =  1; break;
+									case 'february';	$month =  2; break;
+									case 'march';		$month =  3; break;
+									case 'april';		$month =  4; break;
+								//	case 'may';			$month =  5; break;	//	same
+									case 'june';		$month =  6; break;
+									case 'july';		$month =  7; break;
+									case 'august';		$month =  8; break;
+									case 'september';	$month =  9; break;
+									case 'october';		$month = 10; break;
+									case 'november';	$month = 11; break;
+									case 'december';	$month = 12; break;
+									default: return false;
+								}
+							}
+							else
+							{
+								return false;
+							}
+						}
+					}
+					else if (isset($date['tm_year']) && isset($date['tm_mon']) && isset($date['tm_mday']))
+					{
+						//	extract a date from strptime()
+						//	http://php.net/manual/en/function.strptime.php
+						$year	=	$date['tm_year'];						//	"tm_year"	Years since 1900
+						$month	=	$date['tm_mon'];						//	"tm_mon"	Months since January (0-11)
+						$day	=	$date['tm_mday'];						//	"tm_mday"	Day of the month (1-31)
+						if ( ! is_numeric($year) || ! is_numeric($month) || ! is_numeric($day))
+						{
+							return false;
+						}
+						$year += 1900;					//	WARNING: untested!
+						$month++;
+					}
+					else
+					{
+						return false;
+					}
+				}
+				else
+				{
+					return false;
+				}
+				break;
+
+			case 3:
+
+				//	because the 2nd param (month) might be a string, I don't want to copy the string matching months code!
+				return self::normalize($params);
+		}
+
+		$year	=	(int) $year;
+		$month	=	(int) $month;
+		$day	=	(int) $day;
+
+		if ($year < 1000 || $month < 1 || $day < 1 || $day > 31 || $month > 12 || $year > 9999)
+			return false;
+
+		if (checkdate($month, $day, $year))
+			return str_pad($year, 4, '0', STR_PAD_LEFT) . str_pad($month, 3, '-0', STR_PAD_LEFT) . str_pad($day , 3, '-0', STR_PAD_LEFT);
+
+		return false;
+	}
+
+
+	/**
+	 *
+	 * @param  string $start start date
+	 * @param  string $end    end date
+	 *
+	 * @return true/false if the date is between a date range ...
+	 */
+	public function between($start, $end)
+	{
+		trigger_error('Function ' . __METHOD__ . ' not implemented yet');
+	}
+
+
+	/**
+	 *	PHP version of the MySQL FROM_DAYS() function
+	 *
+	 *	@link	https://dev.mysql.com/doc/refman/5.5/en/date-and-time-functions.html#function_from-days
 	 *
 	 * @return string[]|null Returns an array with 'year', 'month' and 'day'
 	 *                       from a matching date in the format 'YYYY-MM-DD', or null on failure
 	 */
-	public function getDate(string $pattern = null)
+	public static function from_days($days)
 	{
-		$pattern = $pattern ?? '/^(?P<year>[12][0-9]{3})-(?P<month>0[1-9]|1[0-2])-(?P<day>0[1-9]|[1-2][0-9]|3[0-1])$/';
-		return preg_match($pattern, $this->str, $matches) === false ? null : $matches;
+		trigger_error('Function ' . __METHOD__ . ' not implemented yet');
 	}
 
-	/**
-	 * Wrapper around preg_match(), returning the array based on a matching pattern, or null on failure.
-	 * The pattern can contain any number of named or unnamed capture groups.
-	 *
-	 * @return string[]|null Returns an array with matching patterns, or null on failure
-	 */
-	public function getMatch(string $pattern, int $flags = 0, int $offset = 0)
-	{
-		return preg_match($pattern, $this->str, $matches, $flags, $offset) === false ? null : $matches;
-	}
 
 	/**
-	 * Wrapper around preg_match_all(), returning the array based on a matching pattern, or null on failure.
-	 * The pattern can contain any number of named or unnamed capture groups.
+	 *	PHP version of the MySQL FROM_DAYS() function
 	 *
-	 * @return string[]|null Returns an array with matching patterns, or null on failure
+	 *	@link	https://dev.mysql.com/doc/refman/5.5/en/date-and-time-functions.html#function_from-days
+	 *
+	 * @return string[]|null Returns an array with 'year', 'month' and 'day'
+	 *                       from a matching date in the format 'YYYY-MM-DD', or null on failure
 	 */
-	public function getMatchAll(string $pattern, int $flags = PREG_PATTERN_ORDER, int $offset = 0)
+	public static function from_unixtime($time)
 	{
-		return preg_match_all($pattern, $this->str, $matches, $flags, $offset) === false ? null : $matches;
+		trigger_error('Function ' . __METHOD__ . ' not implemented yet');
 	}
+
+
+	/**
+	 * Gets a hash code of the internal date.
+	 *
+	 * @param  string|null $algo Algorithm name supported by the hash() library, defaults to 'md5'
+	 * @return string
+	 */
+	public function hash($algo = 'md5', $format = null, $raw_output = false)
+	{
+		return hash($algo, parent::format($format === null ? static::$format : $format), $raw_output);
+	}
+
 
 	/**
 	 * Gets a hash code of the internal string.
@@ -548,525 +914,62 @@ class DateTime implements Countable, IteratorAggregate, ArrayAccess
 	 * @param  string|null $algo Algorithm name supported by the hash() library, defaults to 'md5'
 	 * @return string
 	 */
-	public function hash(string $algo = 'md5', bool $raw_output = false)
+	public function getHash($algo = 'md5', $format = null, $raw_output = false)
 	{
-		return new static(hash($algo, $this->str, $raw_output));
-	}
-
-	/**
-	 * Returns true if the string contains a lower case char, false
-	 * otherwise.
-	 *
-	 * @return bool Whether or not the string contains a lower case character.
-	 */
-	public function hasLowerCase()
-	{
-		trigger_error('Function not implemented yet');
-
-		return $this->matchesPattern('.*[[:lower:]]');
-	}
-
-	/**
-	 * Returns true if the string contains an upper case char, false
-	 * otherwise.
-	 *
-	 * @return bool Whether or not the string contains an upper case character.
-	 */
-	public function hasUpperCase()
-	{
-		trigger_error('Function not implemented yet');
-
-		return $this->matchesPattern('.*[[:upper:]]');
+		return hash($algo, parent::format($format === null ? static::$format : $format), $raw_output);
 	}
 
 
 	/**
-	 * Convert all HTML entities to their applicable characters. An alias of
-	 * html_entity_decode. For a list of flags, refer to
-	 * http://php.net/manual/en/function.html-entity-decode.php
 	 *
-	 * @param  int|null $flags Optional flags
-	 * @return static   Object with the resulting $str after being html decoded.
-	 */
-	public function htmlDecode($flags = ENT_COMPAT)
-	{
-		trigger_error('Function not implemented yet');
-
-		return static::create(html_entity_decode($this->str, $flags, $this->encoding), $this->encoding);
-	}
-
-	/**
-	 * Convert all applicable characters to HTML entities. An alias of
-	 * htmlentities. Refer to http://php.net/manual/en/function.htmlentities.php
-	 * for a list of flags.
-	 *
-	 * @param  int|null $flags Optional flags
-	 * @return static   Object with the resulting $str after being html encoded.
-	 */
-	public function htmlEncode($flags = ENT_COMPAT)
-	{
-		trigger_error('Function not implemented yet');
-
-		return static::create(htmlentities($this->str, $flags, $this->encoding), $this->encoding);
-	}
-
-	/**
-	 * Capitalizes the first word of the string, replaces underscores with
-	 * spaces, and strips '_id'.
-	 *
-	 * @return static Object with a humanized $str
+	 * @return Human readable date format, eg. 24 October 1977
 	 */
 	public function humanize()
 	{
-		trigger_error('Function not implemented yet');
-
-		return static::create(
-					str_replace(['_id', '_'], ['', ' '], $this->str),
-					$this->encoding)->trim()->upperCaseFirst();
+		trigger_error('Function ' . __METHOD__ . ' not implemented yet');
 	}
 
-	/**
-	 * Returns the index of the first occurrence of $needle in the string,
-	 * and false if not found. Accepts an optional offset from which to begin
-	 * the search.
-	 *
-	 * @param  string   $needle Substring to look for
-	 * @param  int      $offset Offset from which to search
-	 * @return int|bool The occurrence's index if found, otherwise false
-	 */
-	public function indexOf($needle, $offset = 0)
-	{
-		trigger_error('Function not implemented yet');
-
-		return \mb_strpos($this->str, (string) $needle, (int) $offset, $this->encoding);
-	}
 
 	/**
-	 * Returns the index of the last occurrence of $needle in the string,
-	 * and false if not found. Accepts an optional offset from which to begin
-	 * the search. Offsets may be negative to count from the last character
-	 * in the string.
 	 *
-	 * @param  string   $needle Substring to look for
-	 * @param  int      $offset Offset from which to search
-	 * @return int|bool The last occurrence's index if found, otherwise false
-	 */
-	public function indexOfLast($needle, $offset = 0)
-	{
-		trigger_error('Function not implemented yet');
-
-		return \mb_strrpos($this->str, (string) $needle, (int) $offset, $this->encoding);
-	}
-
-	/**
-	 * Inserts $substring into the string at the $index provided.
-	 *
-	 * @param  string $substring String to be inserted
-	 * @param  int    $index     The index at which to insert the substring
-	 * @return static Object with the resulting $str after the insertion
-	 */
-	public function insert($substring, $index)
-	{
-		trigger_error('Function not implemented yet');
-
-		$stringy = static::create($this->str, $this->encoding);
-		if ($index > $stringy->length()) {
-			return $stringy;
-		}
-
-		$start = \mb_substr($stringy->str, 0, $index, $stringy->encoding);
-		$end = \mb_substr($stringy->str, $index, $stringy->length(), $stringy->encoding);
-
-		$stringy->str = $start . $substring . $end;
-
-		return $stringy;
-	}
-
-	/**
-	 * Returns true if the string contains only alphabetic chars, false otherwise.
-	 *
-	 * @return bool Whether or not $str contains only alphabetic chars
-	 */
-	public function isAlpha()
-	{
-		trigger_error('Function not implemented yet');
-
-		return $this->matchesPattern('^[[:alpha:]]*$');
-	}
-
-	/**
-	 * Returns true if the string contains only alphabetic and numeric chars,
-	 * false otherwise.
-	 *
-	 * @return bool Whether or not $str contains only alphanumeric chars
-	 */
-	public function isAlphanumeric()
-	{
-		trigger_error('Function not implemented yet');
-
-		return $this->matchesPattern('^[[:alnum:]]*$');
-	}
-
-	/**
-	 * Returns true if the string contains only whitespace chars, false
-	 * otherwise.
-	 *
-	 * @return bool Whether or not $str contains only whitespace characters
+	 * @return
 	 */
 	public function isBlank()
 	{
-		trigger_error('Function not implemented yet');
-
-		return $this->matchesPattern('^[[:space:]]*$');
+		return $this->date === null || $this->date === '0000-00-00';
 	}
 
 	/**
-	 * Returns true if the string contains a date in the format 'YYYY-MM-DD'
-	 * Alternative patterns:
-	 *		'/^\d{4}-\d{2}-\d{2} [0-2][0-3]:[0-5][0-9]:[0-5][0-9]$/'
-	 * 		'/^\d\d\d\d-\d\d-\d\d$/'
-	 * 		'/^([0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[1-2][0-9]|3[0-1])$/'
+	 *	Gets an MD5 hash code of the internal date. Return result can be raw binary or hex by default
 	 *
-	 * @return bool Whether or not $str contains a matching date in the format 'YYYY-MM-DD'
+	 *	@param  bool|null $raw_output return the raw binary bytes or hex values of the md5 hash
+	 *	@return string
 	 */
-	public function isDate(string $pattern = null)
+	public function md5($format = null, $raw_output = false)
 	{
-		$pattern = $pattern ??
-					($matches === null
-						? '/^(?:[0-9]{4})-(?:0[1-9]|1[0-2])-(?:0[1-9]|[1-2][0-9]|3[0-1])$/'
-						: '/^(?P<year>[0-9]{4})-(?P<month>0[1-9]|1[0-2])-(?P<day>0[1-9]|[1-2][0-9]|3[0-1])$/'
-					);
-		return preg_match($pattern, $this->str, $matches);
+		return hash('md5', parent::format($format === null ? static::$format : $format), $raw_output);
 	}
 
 	/**
-	 * Returns true if the string contains only hexadecimal chars, false otherwise.
-	 *
-	 * @return bool Whether or not $str contains only hexadecimal chars
-	 */
-	public function isHex()
-	{
-		return ctype_xdigit($this->str);
-	}
-
-	/**
-	 * Returns true if the string contains only hexadecimal chars, false otherwise.
-	 *
-	 * @return bool Whether or not $str contains only hexadecimal chars
-	 */
-	public function isHexadecimal()
-	{
-		return ctype_xdigit($this->str);
-	}
-
-	/**
-	 * Returns true if the string is JSON, false otherwise. Unlike json_decode
-	 * in PHP 5.x, this method is consistent with PHP 7 and other JSON parsers,
-	 * in that an empty string is not considered valid JSON.
-	 *
-	 * @return bool Whether or not $str is JSON
-	 */
-	public function isJson()
-	{
-		return is_array(json_decode($this->str, true));
-
-	//	if (!$this->length()) return false;
-	//	json_decode($this->str);
-	//	return (json_last_error() === JSON_ERROR_NONE);
-	}
-
-	/**
-	 * Returns true if the string contains only lower case chars, false otherwise.
-	 *
-	 * @return bool Whether or not $str contains only lower case characters
-	 */
-	public function isLower()
-	{
-		return \ctype_lower($this->str);
-	}
-
-	/**
-	 * Returns true if the string contains only lower case chars, false otherwise.
-	 *
-	 * @return bool Whether or not $str contains only lower case characters
-	 */
-	public function isLowerCase()
-	{
-		return \ctype_lower($this->str);
-	}
-
-	/**
-	 * Returns true if the string contains a match for $pattern
-	 *
-	 * @return bool Whether or not $str contains a match for $pattern
-	 */
-	public function isMatch($pattern, array &$matches = null)
-	{
-		return \preg_match($pattern, $this->str, $matches);
-	}
-
-	/**
-	 * Returns true if the string is serialized, false otherwise.
-	 *
-	 * @return bool Whether or not $str is serialized
-	 */
-	public function isSerialized()
-	{
-		return $this->str === 'b:0;' || @unserialize($this->str) !== false;
-	}
-
-	/**
-	 * Returns true if the string is base64 encoded, false otherwise.
-	 *
-	 * @return bool Whether or not $str is base64 encoded
-	 */
-	public function isBase64()
-	{
-		return \base64_encode(\base64_decode($this->str, true)) === $this->str;
-	}
-
-	/**
-	 * Returns true if the string contains only upper case chars, false otherwise.
-	 *
-	 * @return bool Whether or not $str contains only upper case characters
-	 */
-	public function isUpper()
-	{
-		return \ctype_upper($this->str);
-	}
-
-	/**
-	 * Returns true if the string contains only upper case chars, false otherwise.
-	 *
-	 * @return bool Whether or not $str contains only upper case characters
-	 */
-	public function isUpperCase()
-	{
-		return \ctype_upper($this->str);
-	}
-
-	/**
-	 * Returns the last $n characters of the string.
-	 *
-	 * @param  int    $n Number of characters to retrieve from the end
-	 * @return static Object with its $str being the last $n chars
-	 */
-	public function last($n)
-	{
-		return new static($n <= 0 ? null : \substr($this->str, -$n));
-	}
-
-	/**
-	 * Converts the first character of the supplied string to lower case.
-	 *
-	 * @return static Object with the first character of $str being lower case
-	 */
-	public function lcFirst()
-	{
-		return new static(\lcfirst($this->str));
-	}
-
-	/**
-	 * Returns the length of the string. An alias for PHP's mb_strlen() function.
-	 *
-	 * @return int The number of characters in $str given the encoding
-	 */
-	public function length()
-	{
-		return \strlen($this->str);
-	}
-
-	/**
-	 * Splits on newlines and carriage returns, returning an array of Stringy
-	 * objects corresponding to the lines in the string.
-	 *
-	 * @return static[] An array of Stringy objects
-	 */
-	public function lines()
-	{
-		trigger_error('Function not implemented yet');
-
-		$array = $this->split('[\r\n]{1,2}', $this->str);
-		for ($i = 0; $i < count($array); $i++) {
-			$array[$i] = static::create($array[$i], $this->encoding);
-		}
-
-		return $array;
-	}
-
-	/**
-	 * Returns the longest common prefix between the string and $otherStr.
-	 *
-	 * @param  string $otherStr Second string for comparison
-	 * @return static Object with its $str being the longest common prefix
-	 */
-	public function longestCommonPrefix($otherStr)
-	{
-		trigger_error('Function not implemented yet');
-
-		$encoding = $this->encoding;
-		$maxLength = min($this->length(), \mb_strlen($otherStr, $encoding));
-
-		$longestCommonPrefix = '';
-		for ($i = 0; $i < $maxLength; $i++) {
-			$char = \mb_substr($this->str, $i, 1, $encoding);
-
-			if ($char == \mb_substr($otherStr, $i, 1, $encoding)) {
-				$longestCommonPrefix .= $char;
-			} else {
-				break;
-			}
-		}
-
-		return static::create($longestCommonPrefix, $encoding);
-	}
-
-	/**
-	 * Returns the longest common suffix between the string and $otherStr.
-	 *
-	 * @param  string $otherStr Second string for comparison
-	 * @return static Object with its $str being the longest common suffix
-	 */
-	public function longestCommonSuffix($otherStr)
-	{
-		trigger_error('Function not implemented yet');
-
-		$encoding = $this->encoding;
-		$maxLength = min($this->length(), \mb_strlen($otherStr, $encoding));
-
-		$longestCommonSuffix = '';
-		for ($i = 1; $i <= $maxLength; $i++) {
-			$char = \mb_substr($this->str, -$i, 1, $encoding);
-
-			if ($char == \mb_substr($otherStr, -$i, 1, $encoding)) {
-				$longestCommonSuffix = $char . $longestCommonSuffix;
-			} else {
-				break;
-			}
-		}
-
-		return static::create($longestCommonSuffix, $encoding);
-	}
-
-	/**
-	 * Returns the longest common substring between the string and $otherStr.
-	 * In the case of ties, it returns that which occurs first.
-	 *
-	 * @param  string $otherStr Second string for comparison
-	 * @return static Object with its $str being the longest common substring
-	 */
-	public function longestCommonSubstring($otherStr)
-	{
-		trigger_error('Function not implemented yet');
-
-		// Uses dynamic programming to solve
-		// http://en.wikipedia.org/wiki/Longest_common_substring_problem
-		$encoding = $this->encoding;
-		$stringy = static::create($this->str, $encoding);
-		$strLength = $stringy->length();
-		$otherLength = \mb_strlen($otherStr, $encoding);
-
-		// Return if either string is empty
-		if ($strLength == 0 || $otherLength == 0) {
-			$stringy->str = '';
-			return $stringy;
-		}
-
-		$len = 0;
-		$end = 0;
-		$table = array_fill(0, $strLength + 1,
-			array_fill(0, $otherLength + 1, 0));
-
-		for ($i = 1; $i <= $strLength; $i++) {
-			for ($j = 1; $j <= $otherLength; $j++) {
-				$strChar = \mb_substr($stringy->str, $i - 1, 1, $encoding);
-				$otherChar = \mb_substr($otherStr, $j - 1, 1, $encoding);
-
-				if ($strChar == $otherChar) {
-					$table[$i][$j] = $table[$i - 1][$j - 1] + 1;
-					if ($table[$i][$j] > $len) {
-						$len = $table[$i][$j];
-						$end = $i;
-					}
-				} else {
-					$table[$i][$j] = 0;
-				}
-			}
-		}
-
-		$stringy->str = \mb_substr($stringy->str, $end - $len, $len, $encoding);
-
-		return $stringy;
-	}
-
-	/**
-	 * Converts the first character of the string to lower case.
-	 *
-	 * @return static Object with the first character of $str being lower case
-	 */
-	public function lowerCaseFirst()
-	{
-		trigger_error('Function not implemented yet');
-
-		$first = \mb_substr($this->str, 0, 1, $this->encoding);
-		$rest = \mb_substr($this->str, 1, $this->length() - 1,
-			$this->encoding);
-
-		$str = \mb_strtolower($first, $this->encoding) . $rest;
-
-		return static::create($str, $this->encoding);
-	}
-
-	/**
-	 * Returns a string with whitespace removed from the start/left of the string.
-	 * Accepts an optional string of characters to strip instead of the defaults.
-	 *
-	 * @param  string $character_mask Optional string of characters to strip
-	 * @return static Object with a trimmed $str
-	 */
-	public function ltrim(string $character_mask = " \t\n\r\0\x0B")
-	{
-		return new static(ltrim($this->str, $character_mask));
-	}
-
-	/**
-	 * Gets an MD5 hash code of the internal string. Return result can be raw binary or hex by default
-	 *
-	 * @param  bool|null $raw_output return the raw binary bytes or hex values of the md5 hash
-	 * @return string
-	 */
-	public function md5(bool $raw_output = false)
-	{
-		return new static(hash('md5', $this->str, $raw_output));
-	}
-
-	/**
-	 * Returns whether or not a character exists at an index. Offsets may be
-	 * negative to count from the last character in the string. Implements
-	 * part of the ArrayAccess interface.
 	 *
 	 * @param  mixed   $offset The index to check
 	 * @return boolean Whether or not the index exists
 	 */
 	public function offsetExists($offset)
 	{
-		trigger_error('Function not implemented yet');
-
-		$length = $this->length();
-		$offset = (int) $offset;
-
-		if ($offset >= 0) {
-			return ($length > $offset);
+		switch($offset)
+		{
+			case 0:			return true;
+			case 1:			return true;
+			case 2:			return true;
+			case 'year':	return true;
+			case 'month':	return true;
+			case 'day':		return true;
 		}
-
-		return ($length >= abs($offset));
+		return false;
 	}
 
 	/**
-	 * Returns the character at the given index. Offsets may be negative to
-	 * count from the last character in the string. Implements part of the
-	 * ArrayAccess interface, and throws an OutOfBoundsException if the index
-	 * does not exist.
 	 *
 	 * @param  mixed $offset         The index from which to retrieve the char
 	 * @return mixed                 The character at the specified index
@@ -1075,32 +978,93 @@ class DateTime implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function offsetGet($offset)
 	{
-		trigger_error('Function not implemented yet');
-
-		$offset = (int) $offset;
-		$length = $this->length();
-
-		if (($offset >= 0 && $length <= $offset) || $length < abs($offset)) {
-			throw new OutOfBoundsException('No character exists at the index');
+		switch ($name)
+		{
+			case 'year':	return $this->date->format('Y');
+			case 'month':	return $this->date->format('m');
+			case 'day':		return $this->date->format('d');
+			case 0:			return $this->date->format('Y');
+			case 1:			return $this->date->format('m');
+			case 2:			return $this->date->format('d');
 		}
 
-		return \mb_substr($this->str, $offset, 1, $this->encoding);
+		if (strlen($name) === 1)
+			return $this->date->format($name);
+
+		/*
+			//	http://php.net/manual/en/function.date.php
+			case 'd':	return ;				//	Day of the month, 2 digits with leading zeros										eg. 01 to 31
+			case 'D':	return ;				//	A textual representation of a day, three letters									eg. Mon through Sun
+			case 'j':	return ;				//	Day of the month without leading zeros												eg. 1 to 31
+			case 'l':	return ;				//	A full textual representation of the day of the week								eg. Sunday through Saturday
+			case 'N':	return ;				//	ISO-8601 numeric representation of the day of the week (added in PHP 5.1.0			eg. 1 (for Monday) through 7 (for Sunday)
+			case 'S':	return ;				//	English ordinal suffix for the day of the month, 2 characters						eg.  	st, nd, rd or th. Works well with j
+			case 'w':	return ;				//	Numeric representation of the day of the week										eg. 0 (for Sunday) through 6 (for Saturday)
+			case 'z':	return ;				//	 	The day of the year (starting from 0)											eg. 0 through 365
+			case 'W':	return ;				//	ISO-8601 week number of year, weeks starting on Monday								eg. Example: 42 (the 42nd week in the year)
+			case 'F':	return ;				//	A full textual representation of a month, such as January or March					eg. January through December
+			case 'm':	return ;				//	Numeric representation of a month, with leading zeros								eg. 01 through 12
+			case 'M':	return ;				//	A short textual representation of a month, three letters							eg. Jan through Dec
+			case 'n':	return ;				//	Numeric representation of a month, without leading zeros							eg. 1 through 12
+			case 't':	return ;				//	Number of days in the given month													eg. 28 through 31
+			case 'L':	return ;				//	Whether it's a leap year															eg. 1 if it is a leap year, 0 otherwise.
+			case 'o':	return ;				//	ISO-8601 week-numbering year. This has the same value as Y, except that if the ISO week number (W) belongs to the previous or next year, that year is used instead. (added in PHP 5.1.0)			eg. Examples: 1999 or 2003
+			case 'Y':	return ;				//	A full numeric representation of a year, 4 digits									eg. Examples: 1999 or 2003
+			case 'y':	return ;				//	A two digit representation of a year												eg. Examples: 99 or 03
+			case 'U':	return ;				//	Seconds since the Unix Epoch (January 1 1970 00:00:00 GMT)							eg. See also time()
+		*/
+
+		if ( ! ctype_lower($name))
+			$name = strtolower($name);
+
+		//	@link	http://www.tutorialspoint.com/mysql/mysql-date-time-functions.htm
+		//	@link	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html
+
+		switch ($name)
+		{
+			case 'dayname':			return $this->date->format('l');		//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_dayname			MySQL: Returns the name of the weekday for date. The language used for the name is controlled by the value of the lc_time_names system variable
+			case 'dayofweek':		return $this->date->format('w') + 1;	//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_dayofweek			MySQL: 1 = Sunday, 2 = Monday, …, 7 = Saturday		'w' = 0 (for Sunday) through 6 (for Saturday)
+			case 'dayofmonth':		return $this->date->format('j');		//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_dayofmonth		MySQL: Returns the day of the month for date, in the range 1 to 31, or 0 for dates such as '0000-00-00' or '2008-00-00' that have a zero day part.
+			case 'dayofyear':		return $this->date->format('z') + 1;	//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_dayofyear			MySQL: Returns the day of the year for date, in the range 1 to 366.
+			case 'monthname':		return $this->date->format('F');		//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_monthname			MySQL: Returns the full name of the month for date. The language used for the name is controlled by the value of the lc_time_names system variable
+			case 'timestamp':		return $this->date->format('U');		//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_timestamp			MySQL: With a single argument, this function returns the date or datetime expression expr as a datetime value. With two arguments, it adds the time expression expr2 to the date or datetime expression expr1 and returns the result as a datetime value.
+			case 'unix_timestamp':	return $this->date->format('U');		//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_unix-timestamp	MySQL: If called with no argument, returns a Unix timestamp (seconds since '1970-01-01 00:00:00' UTC).
+			case 'to_days':			break;									//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_to-days			MySQL: Given a date date, returns a day number (the number of days since year 0).
+			case 'utc_date':		return $this->date->format('Y-m-d');	//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_utc-date			MySQL: Returns the current UTC date as a value in 'YYYY-MM-DD' or YYYYMMDD format, depending on whether the function is used in a string or numeric context.
+			case 'utc_time':		return $this->date->format('H:i:s');	//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_utc-time			MySQL: Returns the current UTC time as a value in 'HH:MM:SS'
+			case 'utc_timestamp':	return $this->date->format('Y-m-d H:i:s');	//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_utc-timestamp	MySQL: Returns the current UTC date and time as a value in 'YYYY-MM-DD HH:MM:SS' or YYYYMMDDHHMMSS format, depending on whether the function is used in a string or numeric context.
+			case 'quarter':			return $this->date->format('m') / 4 + 1;	//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_quarter		MySQL: Returns the quarter of the year for date, in the range 1 to 4.
+			case 'week':			break;									//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_week				MySQL: This function returns the week number for date. The two-argument form of WEEK() enables you to specify whether the week starts on Sunday or Monday and whether the return value should be in the range from 0 to 53 or from 1 to 53. If the mode argument is omitted, the value of the default_week_format system variable is used. See Section 5.1.5, “Server System Variables”.
+			case 'weekday':			return $this->date->format('N') - 1;	//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_weekday			MySQL: Returns the weekday index for date (0 = Monday, 1 = Tuesday, … 6 = Sunday).
+			case 'weekofyear':		break;									//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_weekofyear		MySQL: Returns the calendar week of the date as a number in the range from 1 to 53. WEEKOFYEAR() is a compatibility function that is equivalent to WEEK(date,3).
+			case 'yearweek':		break;									//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_yearweek			MySQL: Returns year and week for a date. The year in the result may be different from the year in the date argument for the first and the last week of the year.
+			case 'date':			return $this->date->format('Y-m-d');	//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_date				MySQL: Extracts the date part of the date or datetime expression expr.
+
+				throw new \InvalidArgumentException('TODO: Property offsetGet["' . $name . '"] not implemented yet');
+
+			//	strtolower($name) versions
+			case 'year':		return $this->date->format('Y');
+			case 'month':		return $this->date->format('m');
+			case 'day':			return $this->date->format('d');
+
+			case 'hour':		return $this->date->format('G');			//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_hour				MySQL: Returns the hour for time. The range of the return value is 0 to 23 for time-of-day values. However, the range of TIME values actually is much larger, so HOUR can return values greater than 23.
+			case 'minute':		return $this->date->format('i');			//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_minute			MySQL: Returns the minute for time, in the range 0 to 59.
+			case 'second':		return $this->date->format('s');			//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_hour				MySQL: Returns the second for time, in the range 0 to 59.
+		}
+
+		throw new \InvalidArgumentException('Property offsetGet["' . $name . '"] does not exist!');
 	}
 
 	/**
-	 * Implements part of the ArrayAccess interface, but throws an exception
-	 * when called. This maintains the immutability of Stringy objects.
+	 *	Implements part of the ArrayAccess interface
 	 *
-	 * @param  mixed      $offset The index of the character
-	 * @param  mixed      $value  Value to set
-	 * @throws \Exception When called
+	 *	@param  mixed      $offset The index of the character
+	 *	@param  mixed      $value  Value to set
+	 *	@throws \Exception When called
 	 */
 	public function offsetSet($offset, $value)
 	{
-		trigger_error('Function not implemented yet');
-
-		// Stringy is immutable, cannot directly set char
-		throw new Exception('Stringy object is immutable, cannot modify char');
+		throw new \Exception('Cannot set array indexes!');
 	}
 
 	/**
@@ -1112,236 +1076,35 @@ class DateTime implements Countable, IteratorAggregate, ArrayAccess
 	 */
 	public function offsetUnset($offset)
 	{
-		trigger_error('Function not implemented yet');
-
-		// Don't allow directly modifying the string
-		throw new Exception('Stringy object is immutable, cannot unset char');
+		throw new \Exception('Cannot unset array indexes!');
 	}
 
 	/**
-	 * Pads the string to a given length with $padStr. If length is less than
-	 * or equal to the length of the string, no padding takes places. The
-	 * default string used for padding is a space, and the default type (one of
-	 * 'left', 'right', 'both') is 'right'. Throws an InvalidArgumentException
-	 * if $padType isn't one of those 3 values.
+	 *	PHP equivalent of the LAST_DAY() MySQL function
 	 *
-	 * @param  int    $pad_length  Desired string length after padding
-	 * @param  string $pad_string  String used to pad, defaults to space
-	 * @param  string $pad_type One of 'left'|STR_PAD_LEFT, 'right'|STR_PAD_RIGHT or 'both'|STR_PAD_BOTH
-	 * @return static Object with a padded $str
-	 * @throws /InvalidArgumentException If $padType isn't one of 'right',
-	 *         'left' or 'both'
+	 *	`Takes a date or datetime value and returns the corresponding value for the last day of the month. Returns NULL if the argument is invalid.`
+	 *
+	 *	@link	https://dev.mysql.com/doc/refman/5.5/en/date-and-time-functions.html#function_last-day
+	 *
+	 *	@return int
 	 */
-	public function pad(int $pad_length, string $pad_string = ' ', $pad_type = STR_PAD_RIGHT)
+	public function last_day()
 	{
-		if (is_string($pad_type))
-		{
-			if ( ! ctype_lower($pad_type))
-				$pad_type = strtolower($pad_type);
-
-			switch ($pad_type)
-			{
-				case 'left':	$pad_type = STR_PAD_LEFT;	break;
-				case 'right':	$pad_type = STR_PAD_RIGHT;	break;
-				case 'both':	$pad_type = STR_PAD_BOTH;	break;
-				default:
-					throw new InvalidArgumentException('Pad expects $padType to be one of ' .
-													"'left', 'right' or 'both'");
-			}
-		}
-		return new static(str_pad($this->str, $pad_length, $pad_string, $pad_type));
+		trigger_error('Function ' . __METHOD__ . ' not implemented yet');
 	}
 
 	/**
-	 * Returns a new string of a given length such that both sides of the string are padded.
-	 * Wrapper around str_pad() with $pad_type of 'both'|STR_PAD_BOTH.
+	 *	PHP equivalent of the QUARTER() MySQL function
 	 *
-	 * @param  int    $pad_length Desired string length after padding
-	 * @param  string $pad_string String used to pad, defaults to space
-	 * @return static String with padding applied
-	 */
-	public function padBoth(int $pad_length, string $pad_string = ' ')
-	{
-		return new static(str_pad($this->str, $pad_length, $pad_string, STR_PAD_BOTH));
-	}
-
-	/**
-	 * Returns a new string of a given length such that the beginning of the string is padded.
-	 * Wrapper around str_pad() with $pad_type of 'left'|STR_PAD_LEFT.
+	 *	`Returns the quarter of the year for date, in the range 1 to 4.`
 	 *
-	 * @param  int    $pad_length Desired string length after padding
-	 * @param  string $pad_string String used to pad, defaults to space
-	 * @return static String with left padding
-	 */
-	public function padLeft(int $pad_length, string $pad_string = ' ')
-	{
-		return new static(str_pad($this->str, $pad_length, $pad_string, STR_PAD_LEFT));
-	}
-
-	/**
-	 * Returns a new string of a given length such that the end of the string is padded.
-	 * Wrapper around str_pad() with $pad_type of 'right'|STR_PAD_RIGHT.
+	 *	@link	https://dev.mysql.com/doc/refman/5.5/en/date-and-time-functions.html#function_quarter
 	 *
-	 * @param  int    $pad_length Desired string length after padding
-	 * @param  string $pad_string String used to pad, defaults to space
-	 * @return static String with left padding
+	 *	@return int
 	 */
-	public function padRight(int $pad_length, string $pad_string = ' ')
+	public function quarter()
 	{
-		return new static(str_pad($this->str, $pad_length, $pad_string, STR_PAD_RIGHT));
-	}
-
-	/**
-	 * Returns a new string starting with $string.
-	 *
-	 * @param  string $string The string to prepend
-	 * @return static Object with prepend $string
-	 */
-	public function prepend($string)
-	{
-		return new static($string . $this->str);
-	}
-
-	/**
-	 * Replaces all occurrences of $pattern in $str by $replacement. An alias
-	 * for mb_ereg_replace(). Note that the 'i' option with multibyte patterns
-	 * in mb_ereg_replace() requires PHP 5.6+ for correct results. This is due
-	 * to a lack of support in the bundled version of Oniguruma in PHP < 5.6,
-	 * and current versions of HHVM (3.8 and below).
-	 *
-	 * @param  string $pattern     The regular expression pattern
-	 * @param  string $replacement The string to replace with
-	 * @param  string $options     Matching conditions to be used
-	 * @return static Object with the resulting $str after the replacements
-	 */
-	public function regexReplace($pattern, $replacement, $options = 'msr')
-	{
-		trigger_error('Function not implemented yet');
-
-		$regexEncoding = $this->regexEncoding();
-		$this->regexEncoding($this->encoding);
-
-		$str = $this->eregReplace($pattern, $replacement, $this->str, $options);
-		$this->regexEncoding($regexEncoding);
-
-		return static::create($str, $this->encoding);
-	}
-
-	/**
-	 * Returns a new string with the prefix $substring removed, if present.
-	 *
-	 * @param  string $substring The prefix to remove
-	 * @return static Object having a $str without the prefix $substring
-	 */
-	public function removeLeft($substring)
-	{
-		trigger_error('Function not implemented yet');
-
-		$stringy = static::create($this->str, $this->encoding);
-
-		if ($stringy->startsWith($substring)) {
-			$substringLength = \mb_strlen($substring, $stringy->encoding);
-			return $stringy->substr($substringLength);
-		}
-
-		return $stringy;
-	}
-
-	/**
-	 * Returns a new string with the suffix $substring removed, if present.
-	 *
-	 * @param  string $substring The suffix to remove
-	 * @return static Object having a $str without the suffix $substring
-	 */
-	public function removeRight($substring)
-	{
-		trigger_error('Function not implemented yet');
-
-		$stringy = static::create($this->str, $this->encoding);
-
-		if ($stringy->endsWith($substring)) {
-			$substringLength = \mb_strlen($substring, $stringy->encoding);
-			return $stringy->substr(0, $stringy->length() - $substringLength);
-		}
-
-		return $stringy;
-	}
-
-	/**
-	 * Returns a repeated string given a multiplier. An alias for str_repeat.
-	 *
-	 * @param  int    $multiplier The number of times to repeat the string
-	 * @return static Object with a repeated str
-	 */
-	public function repeat($multiplier)
-	{
-		trigger_error('Function not implemented yet');
-
-		return static::create(str_repeat($this->str, $multiplier), $this->encoding);
-	}
-
-	/**
-	 * Replaces all occurrences of $search in $str by $replacement.
-	 *
-	 * @param  string $search      The needle to search for
-	 * @param  string $replacement The string to replace with
-	 * @return static Object with the resulting $str after the replacements
-	 */
-	public function replace($search, $replacement)
-	{
-		trigger_error('Function not implemented yet');
-
-		return $this->regexReplace(preg_quote($search), $replacement);
-	}
-
-	/**
-	 * Returns a reversed string.
-	 *
-	 * @return static Object with a reversed $str
-	 */
-	public function reverse()
-	{
-		return new static(strrev($this->str));
-	}
-
-	/**
-	 * Truncates the string to a given length, while ensuring that it does not
-	 * split words. If $substring is provided, and truncating occurs, the
-	 * string is further truncated so that the substring may be appended without
-	 * exceeding the desired length.
-	 *
-	 * @param  int    $length    Desired length of the truncated string
-	 * @param  string $substring The substring to append if it can fit
-	 * @return static Object with the resulting $str after truncating
-	 */
-	public function safeTruncate($length, $substring = '')
-	{
-		trigger_error('Function not implemented yet');
-
-		$stringy = static::create($this->str, $this->encoding);
-		if ($length >= $stringy->length()) {
-			return $stringy;
-		}
-
-		// Need to further trim the string so we can append the substring
-		$encoding = $stringy->encoding;
-		$substringLength = \mb_strlen($substring, $encoding);
-		$length = $length - $substringLength;
-
-		$truncated = \mb_substr($stringy->str, 0, $length, $encoding);
-
-		// If the last word was truncated
-		if (mb_strpos($stringy->str, ' ', $length - 1, $encoding) != $length) {
-			// Find pos of the last occurrence of a space, get up to that
-			$lastPos = \mb_strrpos($truncated, ' ', 0, $encoding);
-			if ($lastPos !== false) {
-				$truncated = \mb_substr($truncated, 0, $lastPos, $encoding);
-			}
-		}
-
-		$stringy->str = $truncated . $substring;
-
-		return $stringy;
+		return (int) ceil($this->month / 3);
 	}
 
 	/**
@@ -1350,9 +1113,9 @@ class DateTime implements Countable, IteratorAggregate, ArrayAccess
 	 * @param  bool|null $raw_output return the raw binary bytes or hex values of the SHA1 hash
 	 * @return string
 	 */
-	public function sha1(bool $raw_output = false)
+	public function sha1($format = null, $raw_output = false)
 	{
-		return new static(hash('sha1', $this->str, $raw_output));
+		return hash('sha1', parent::format($format === null ? static::$format : $format), $raw_output);
 	}
 
 	/**
@@ -1361,9 +1124,9 @@ class DateTime implements Countable, IteratorAggregate, ArrayAccess
 	 * @param  bool|null $raw_output return the raw binary bytes or hex values of the SHA-256 hash
 	 * @return string
 	 */
-	public function sha256(bool $raw_output = false)
+	public function sha256($format = null, $raw_output = false)
 	{
-		return new static(hash('sha256', $this->str, $raw_output));
+		return hash('sha256', parent::format($format === null ? static::$format : $format), $raw_output);
 	}
 
 	/**
@@ -1372,9 +1135,9 @@ class DateTime implements Countable, IteratorAggregate, ArrayAccess
 	 * @param  bool|null $raw_output return the raw binary bytes or hex values of the SHA-384 hash
 	 * @return string
 	 */
-	public function sha384(bool $raw_output = false)
+	public function sha384($format = null, $raw_output = false)
 	{
-		return new static(hash('sha384', $this->str, $raw_output));
+		return hash('sha384', parent::format($format === null ? static::$format : $format), $raw_output);
 	}
 
 	/**
@@ -1383,931 +1146,737 @@ class DateTime implements Countable, IteratorAggregate, ArrayAccess
 	 * @param  bool|null $raw_output return the raw binary bytes or hex values of the SHA-512 hash
 	 * @return string
 	 */
-	public function sha512(bool $raw_output = false)
+	public function sha512($format = null, $raw_output = false)
 	{
-		return new static(hash('sha512', $this->str, $raw_output));
+		return hash('sha512', parent::format($format === null ? static::$format : $format), $raw_output);
 	}
 
-	/*
-	 * A str_shuffle() wrapper function.
-	 *
-	 * @return static Object with a shuffled $str
-	 */
-	public function shuffle()
-	{
-		return new static(str_shuffle($this->str));
-	}
 
 	/**
-	 * Converts the string into an URL slug. This includes replacing non-ASCII
-	 * characters with their closest ASCII equivalents, removing remaining
-	 * non-ASCII and non-alphanumeric characters, and replacing whitespace with
-	 * $replacement. The replacement defaults to a single dash, and the string
-	 * is also converted to lowercase. The language of the source string can
-	 * also be supplied for language-specific transliteration.
 	 *
-	 * @param  string $replacement The string used to replace whitespace
-	 * @param  string $language    Language of the source string
-	 * @return static Object whose $str has been converted to an URL slug
+	 * @return array
 	 */
-	public function slugify($replacement = '-', $language = 'en')
+	public function toArray($format = 'Y-m-d H:i:s e')
 	{
-		trigger_error('Function not implemented yet');
-
-		$stringy = $this->toAscii($language);
-
-		$stringy->str = str_replace('@', $replacement, $stringy);
-		$quotedReplacement = preg_quote($replacement);
-		$pattern = "/[^a-zA-Z\d\s-_$quotedReplacement]/u";
-		$stringy->str = preg_replace($pattern, '', $stringy);
-
-		return $stringy->toLowerCase()->delimit($replacement)
-					   ->removeLeft($replacement)->removeRight($replacement);
+		return array_merge(getdate($this->getTimestamp()), date_parse(parent::format($format)));
 	}
 
-	/**
-	 * Returns true if the string begins with $substring, false otherwise.
-	 * By default, the comparison is case-sensitive,
-	 * but can be made insensitive by setting $caseSensitive to false.
-	 *
-	 * @param  string $substring     The substring to look for
-	 * @param  bool   $caseSensitive Whether or not to enforce case-sensitivity
-	 * @return bool   Whether or not $str starts with $substring
-	 */
-	public function startsWith($substring, $caseSensitive = true)
-	{
-		return ($caseSensitive ? strpos($this->str, $substring) : stripos($this->str, $substring)) === 0;
-	}
 
 	/**
-	 * Returns true if the string begins with any of $substrings, false
-	 * otherwise. By default the comparison is case-sensitive, but can be made
-	 * insensitive by setting $caseSensitive to false.
 	 *
-	 * @param  string[] $substrings    Substrings to look for
-	 * @param  bool     $caseSensitive Whether or not to enforce
-	 *                                 case-sensitivity
-	 * @return bool     Whether or not $str starts with $substring
+	 * @return int
 	 */
-	public function startsWithAny($substrings, $caseSensitive = true)
-	{
-		trigger_error('Function not implemented yet');
-
-		if (empty($substrings)) {
-			return false;
-		}
-
-		foreach ($substrings as $substring) {
-			if ($this->startsWith($substring, $caseSensitive)) {
-				return true;
-			}
-		}
-
-		return false;
-	}
-
-	/**
-	 * Returns the substring beginning at $start, and up to, but not including
-	 * the index specified by $end. If $end is omitted, the function extracts
-	 * the remaining string. If $end is negative, it is computed from the end
-	 * of the string.
-	 *
-	 * @param  int    $start Initial index from which to begin extraction
-	 * @param  int    $end   Optional index at which to end extraction
-	 * @return static Object with its $str being the extracted substring
-	 */
-	public function slice($start, $end = null)
-	{
-		trigger_error('Function not implemented yet');
-
-		if ($end === null) {
-			$length = $this->length();
-		} elseif ($end >= 0 && $end <= $start) {
-			return static::create('', $this->encoding);
-		} elseif ($end < 0) {
-			$length = $this->length() + $end - $start;
-		} else {
-			$length = $end - $start;
-		}
-
-		return $this->substr($start, $length);
-	}
-
-	/**
-	 * Splits the string with the provided regular expression, returning an
-	 * array of Stringy objects. An optional integer $limit will truncate the
-	 * results.
-	 *
-	 * @param  string   $pattern The regex with which to split the string
-	 * @param  int      $limit   Optional maximum number of results to return
-	 * @return static[] An array of Stringy objects
-	 */
-	public function split($pattern, $limit = null)
-	{
-		trigger_error('Function not implemented yet');
-
-		if ($limit === 0) {
-			return [];
-		}
-
-		// mb_split errors when supplied an empty pattern in < PHP 5.4.13
-		// and HHVM < 3.8
-		if ($pattern === '') {
-			return [static::create($this->str, $this->encoding)];
-		}
-
-		$regexEncoding = $this->regexEncoding();
-		$this->regexEncoding($this->encoding);
-
-		// mb_split returns the remaining unsplit string in the last index when
-		// supplying a limit
-		$limit = ($limit > 0) ? $limit += 1 : -1;
-
-		static $functionExists;
-		if ($functionExists === null) {
-			$functionExists = function_exists('\mb_split');
-		}
-
-		if ($functionExists) {
-			$array = \mb_split($pattern, $this->str, $limit);
-		} else if ($this->supportsEncoding()) {
-			$array = \preg_split("/$pattern/", $this->str, $limit);
-		}
-
-		$this->regexEncoding($regexEncoding);
-
-		if ($limit > 0 && count($array) === $limit) {
-			array_pop($array);
-		}
-
-		for ($i = 0; $i < count($array); $i++) {
-			$array[$i] = static::create($array[$i], $this->encoding);
-		}
-
-		return $array;
-	}
-
-	/**
-	 * Strip all whitespace characters. This includes tabs and newline
-	 * characters, as well as multibyte whitespace such as the thin space
-	 * and ideographic space.
-	 *
-	 * @return static Object with whitespace stripped
-	 */
-	public function stripWhitespace()
-	{
-		trigger_error('Function not implemented yet');
-
-		return $this->regexReplace('[[:space:]]+', '');
-	}
-
-	/**
-	 * Returns the length of the string. strlen() wrapper.
-	 *
-	 * @return int The number of characters in $str given the encoding
-	 */
-	public function strlen()
-	{
-		return strlen($this->str);
-	}
-
-	/**
-	 * Returns the substring beginning at $start with the specified $length.
-	 * It differs from the mb_substr() function in that providing a $length of
-	 * null will return the rest of the string, rather than an empty string.
-	 *
-	 * @param  int    $start  Position of the first character to use
-	 * @param  int    $length Maximum number of characters used
-	 * @return static Object with its $str being the substring
-	 */
-	public function substr($start, $length = null)
-	{
-		return new static($length === null ? substr($this->str, $start) : substr($this->str, $start, $length));
-	}
-
-	/**
-	 * Surrounds $str with the given substring.
-	 *
-	 * @param  string $substring The substring to add to both sides
-	 * @return static Object whose $str had the substring both prepended and appended
-	 */
-	public function surround($substring)
-	{
-		return new static($substring . $this->str . $substring);
-	}
-
-	/**
-	 * Returns a case swapped version of the string.
-	 *
-	 * @return static Object whose $str has each character's case swapped
-	 */
-	public function swapCase()
-	{
-		trigger_error('Function not implemented yet');
-
-		$stringy = static::create($this->str, $this->encoding);
-		$encoding = $stringy->encoding;
-
-		$stringy->str = preg_replace_callback(
-			'/[\S]/u',
-			function ($match) use ($encoding) {
-				if ($match[0] == \mb_strtoupper($match[0], $encoding)) {
-					return \mb_strtolower($match[0], $encoding);
-				}
-
-				return \mb_strtoupper($match[0], $encoding);
-			},
-			$stringy->str
-		);
-
-		return $stringy;
-	}
-
-	/**
-	 * Returns a string with smart quotes, ellipsis characters, and dashes from
-	 * Windows-1252 (commonly used in Word documents) replaced by their ASCII
-	 * equivalents.
-	 *
-	 * @return static Object whose $str has those characters removed
-	 */
-	public function tidy()
-	{
-		trigger_error('Function not implemented yet');
-
-		$str = preg_replace([
-			'/\x{2026}/u',
-			'/[\x{201C}\x{201D}]/u',
-			'/[\x{2018}\x{2019}]/u',
-			'/[\x{2013}\x{2014}]/u',
-		], [
-			'...',
-			'"',
-			"'",
-			'-',
-		], $this->str);
-
-		return static::create($str, $this->encoding);
-	}
-
-	/**
-	 * Returns a trimmed string with the first letter of each word capitalized.
-	 * Also accepts an array, $ignore, allowing you to list words not to be capitalized.
-	 *
-	 * @param  array  $ignore An array of words not to capitalize
-	 * @return static Object with a titleized $str
-	 */
-	public function titleize($ignore = null)
-	{
-		trigger_error('Function not implemented yet');
-
-		$stringy = static::create($this->trim(), $this->encoding);
-		$encoding = $this->encoding;
-
-		$stringy->str = preg_replace_callback(
-			'/([\S]+)/u',
-			function ($match) use ($encoding, $ignore) {
-				if ($ignore && in_array($match[0], $ignore)) {
-					return $match[0];
-				}
-
-				$stringy = new Stringy($match[0], $encoding);
-
-				return (string) $stringy->toLowerCase()->upperCaseFirst();
-			},
-			$stringy->str
-		);
-
-		return $stringy;
-	}
-
-	/**
-	 * Returns an ASCII version of the string. A set of non-ASCII characters are
-	 * replaced with their closest ASCII counterparts, and the rest are removed
-	 * by default. The language or locale of the source string can be supplied
-	 * for language-specific transliteration in any of the following formats:
-	 * en, en_GB, or en-GB. For example, passing "de" results in "äöü" mapping
-	 * to "aeoeue" rather than "aou" as in other languages.
-	 *
-	 * @param  string $language          Language of the source string
-	 * @param  bool   $removeUnsupported Whether or not to remove the
-	 *                                    unsupported characters
-	 * @return static Object whose $str contains only ASCII characters
-	 */
-	public function toAscii($language = 'en', $removeUnsupported = true)
-	{
-		trigger_error('Function not implemented yet');
-
-		$str = $this->str;
-
-		$langSpecific = $this->langSpecificCharsArray($language);
-		if (!empty($langSpecific)) {
-			$str = str_replace($langSpecific[0], $langSpecific[1], $str);
-		}
-
-		foreach ($this->charsArray() as $key => $value) {
-			$str = str_replace($value, $key, $str);
-		}
-
-		if ($removeUnsupported) {
-			$str = preg_replace('/[^\x20-\x7E]/u', '', $str);
-		}
-
-		return static::create($str, $this->encoding);
-	}
-
-	/**
-	 * Returns a base64 encoded string object.
-	 *
-	 * @return static base64 encoded string object
-	 */
-	public function toBase64()
-	{
-		return new static(base64_encode($this->str));
-	}
-
-	/**
-	 *  Alias of toBoolean()
-	 *
-	 *  @return bool A boolean value for the string
-	 */
-	public function toBool()
-	{
-		return $this->toBoolean();
-	}
-
-	/**
-	 * Returns a boolean representation of the given logical string value.
-	 * For example, 'true', '1', 'on' and 'yes' will return true. 'false', '0',
-	 * 'off', and 'no' will return false. In all instances, case is ignored.
-	 * For other numeric strings, their sign will determine the return value.
-	 * In addition, blank strings consisting of only whitespace will return false.
-	 * For all other strings, the return value is a result of a boolean cast.
-	 *
-	 * @return bool A boolean value for the string
-	 */
-	public function toBoolean()
-	{
-		$key = ctype_lower($this->str) ? $this->str : strtolower($this->str);
-
-		if (isset(self::$boolMap[$key]))
-			return self::$boolMap[$key];
-
-		if (is_numeric($this->str))
-			return intval($this->str) > 0;
-
-		return (bool) \str_replace(\str_split(" \t\n\r\0\x0B"), '', $this->str);
-	}
-
-	/**
-	 * Converts all characters in the string to lowercase.
-	 *
-	 * @return static Object with all characters of $str being lowercase
-	 */
-	public function toLower()
-	{
-		return new static(\strtolower($this->str));
-	}
-
-	/**
-	 * Converts all characters in the string to lowercase.
-	 *
-	 * @return static Object with all characters of $str being lowercase
-	 */
-	public function toLowerCase()
-	{
-		return new static(\strtolower($this->str));
-	}
-
-	/**
-	 * Converts each tab in the string to some number of spaces, as defined by
-	 * $tabLength. By default, each tab is converted to 4 consecutive spaces.
-	 *
-	 * @param  int    $tabLength Number of spaces to replace each tab with
-	 * @return static Object whose $str has had tabs switched to spaces
-	 */
-	public function toSpaces($tabLength = 4)
-	{
-		return new static(\str_replace("\t", \str_repeat(' ', $tabLength), $this->str));
-	}
-
-	/**
-	 * Converts each occurrence of some consecutive number of spaces, as
-	 * defined by $tabLength, to a tab. By default, each 4 consecutive spaces
-	 * are converted to a tab.
-	 *
-	 * @param  int    $tabLength Number of spaces to replace with a tab
-	 * @return static Object whose $str has had spaces switched to tabs
-	 */
-	public function toTabs($tabLength = 4)
-	{
-		return new static(\str_replace(\str_repeat(' ', $tabLength), "\t", $this->str));
-	}
-
-	/**
-	 * Converts the first character of each word in the string to uppercase.
-	 *
-	 * @return static Object with all characters of $str being title-cased
-	 */
-	public function toTitleCase()
-	{
-		return new static(\ucwords($this->str));
-	//	return new static(\mb_convert_case($this->str, \MB_CASE_TITLE, 'UTF-8'));
-	}
-
-	/**
-	 * Converts all characters in the string to uppercase.
-	 *
-	 * @return static Object with all characters of $str being uppercase
-	 */
-	public function toUpper()
-	{
-		return new static(\ctype_upper($this->str));
-	}
-
-	/**
-	 * Converts all characters in the string to uppercase.
-	 *
-	 * @return static Object with all characters of $str being uppercase
-	 */
-	public function toUpperCase()
-	{
-		return new static(\ctype_upper($this->str));
-	}
-
-	/**
-	 * Returns a string with whitespace removed from the start and end of the string.
-	 * Supports the removal of unicode whitespace.
-	 * Accepts an optional string of characters to strip instead of the defaults.
-	 *
-	 * @param  string $character_mask Optional string of characters to strip
-	 * @return static Object with a trimmed $str
-	 */
-	public function trim(string $character_mask = " \t\n\r\0\x0B")
-	{
-		return new static(\trim($this->str, $character_mask));
-	}
-
-	/**
-	 * Returns a string with whitespace removed from the start of the string.
-	 * Supports the removal of unicode whitespace. Accepts an optional
-	 * string of characters to strip instead of the defaults.
-	 *
-	 * @param  string $chars Optional string of characters to strip
-	 * @return static Object with a trimmed $str
-	 */
-	public function trimLeft(string $character_mask = " \t\n\r\0\x0B")
-	{
-		return new static(\ltrim($this->str, $character_mask));
-	}
-
-	/**
-	 * Returns a string with whitespace removed from the end of the string.
-	 * Supports the removal of unicode whitespace. Accepts an optional
-	 * string of characters to strip instead of the defaults.
-	 *
-	 * @param  string $chars Optional string of characters to strip
-	 * @return static Object with a trimmed $str
-	 */
-	public function trimRight(string $character_mask = " \t\n\r\0\x0B")
-	{
-		return new static(\rtrim($this->str, $character_mask));
-	}
-
-	/**
-	 * Truncates the string to a given length. If $substring is provided, and
-	 * truncating occurs, the string is further truncated so that the substring
-	 * may be appended without exceeding the desired length.
-	 *
-	 * @param  int    $length    Desired length of the truncated string
-	 * @param  string $substring The substring to append if it can fit
-	 * @return static Object with the resulting $str after truncating
-	 */
-	public function truncate($length, $substring = '')
+	public function toUnixTimestamp()
 	{
 		trigger_error('Function ' . __METHOD__ . ' not implemented yet');
-
-		$stringy = static::create($this->str, $this->encoding);
-		if ($length >= $stringy->length()) {
-			return $stringy;
-		}
-
-		// Need to further trim the string so we can append the substring
-		$substringLength = \mb_strlen($substring, $stringy->encoding);
-		$length = $length - $substringLength;
-
-		$truncated = \mb_substr($stringy->str, 0, $length, $stringy->encoding);
-		$stringy->str = $truncated . $substring;
-
-		return $stringy;
 	}
 
-	/**
-	 * Converts the first character of the supplied string to upper case.
-	 *
-	 * @return static Object with the first character of $str being upper case
-	 */
-	public function ucFirst()
+	function is_leap_year()
 	{
-		return new static(\ucfirst($this->str));
+		return $this->year % 100 == 0 ? $this->year % 400 == 0 : $this->year % 4 == 0;
 	}
 
-	/**
-	 * Returns a lowercase and trimmed string separated by underscores.
-	 * Underscores are inserted before uppercase characters (with the exception
-	 * of the first character of the string), and in place of spaces as well as dashes.
-	 *
-	 * @return static Object with an underscored $str
-	 */
-	public function underscored()	//	AKA snake_case
+	function isLeapYear()
 	{
-		trigger_error('Function ' . __METHOD__ . ' not implemented yet');
-
-		return $this->delimit('_');
+		return $this->year % 100 == 0 ? $this->year % 400 == 0 : $this->year % 4 == 0;
 	}
 
-	/**
-	 * Returns an UpperCamelCase version of the supplied string. It trims
-	 * surrounding spaces, capitalizes letters following digits, spaces, dashes
-	 * and underscores, and removes spaces, dashes, underscores.
-	 *
-	 * @return static Object with $str in UpperCamelCase
-	 */
-	public function upperCamelize()
-	{
-		trigger_error('Function ' . __METHOD__ . ' not implemented yet');
 
-		return $this->camelize()->upperCaseFirst();
-	}
-
-	/**
-	 * Converts the first character of the supplied string to upper case.
-	 *
-	 * @return static Object with the first character of $str being upper case
-	 */
-	public function upperCaseFirst()
-	{
-		trigger_error('Function ' . __METHOD__ . ' not implemented yet');
-
-		$first = \mb_substr($this->str, 0, 1, $this->encoding);
-		$rest = \mb_substr($this->str, 1, $this->length() - 1, $this->encoding);
-
-		$str = \mb_strtoupper($first, $this->encoding) . $rest;
-
-		return static::create($str, $this->encoding);
-	}
-
-	/**
-	 * Returns the replacements for the toAscii() method.
-	 *
-	 * @return array An array of replacements.
-	 */
-	protected function charsArray()
-	{
-		if (isset(self::$charsArray))
-			return self::$charsArray;
-
-		return self::$charsArray = [
-			'0'     => ['°', '₀', '۰', '０'],
-			'1'     => ['¹', '₁', '۱', '１'],
-			'2'     => ['²', '₂', '۲', '２'],
-			'3'     => ['³', '₃', '۳', '３'],
-			'4'     => ['⁴', '₄', '۴', '٤', '４'],
-			'5'     => ['⁵', '₅', '۵', '٥', '５'],
-			'6'     => ['⁶', '₆', '۶', '٦', '６'],
-			'7'     => ['⁷', '₇', '۷', '７'],
-			'8'     => ['⁸', '₈', '۸', '８'],
-			'9'     => ['⁹', '₉', '۹', '９'],
-			'a'     => ['à', 'á', 'ả', 'ã', 'ạ', 'ă', 'ắ', 'ằ', 'ẳ', 'ẵ',
-						'ặ', 'â', 'ấ', 'ầ', 'ẩ', 'ẫ', 'ậ', 'ā', 'ą', 'å',
-						'α', 'ά', 'ἀ', 'ἁ', 'ἂ', 'ἃ', 'ἄ', 'ἅ', 'ἆ', 'ἇ',
-						'ᾀ', 'ᾁ', 'ᾂ', 'ᾃ', 'ᾄ', 'ᾅ', 'ᾆ', 'ᾇ', 'ὰ', 'ά',
-						'ᾰ', 'ᾱ', 'ᾲ', 'ᾳ', 'ᾴ', 'ᾶ', 'ᾷ', 'а', 'أ', 'အ',
-						'ာ', 'ါ', 'ǻ', 'ǎ', 'ª', 'ა', 'अ', 'ا', 'ａ', 'ä'],
-			'b'     => ['б', 'β', 'ب', 'ဗ', 'ბ', 'ｂ'],
-			'c'     => ['ç', 'ć', 'č', 'ĉ', 'ċ', 'ｃ'],
-			'd'     => ['ď', 'ð', 'đ', 'ƌ', 'ȡ', 'ɖ', 'ɗ', 'ᵭ', 'ᶁ', 'ᶑ',
-						'д', 'δ', 'د', 'ض', 'ဍ', 'ဒ', 'დ', 'ｄ'],
-			'e'     => ['é', 'è', 'ẻ', 'ẽ', 'ẹ', 'ê', 'ế', 'ề', 'ể', 'ễ',
-						'ệ', 'ë', 'ē', 'ę', 'ě', 'ĕ', 'ė', 'ε', 'έ', 'ἐ',
-						'ἑ', 'ἒ', 'ἓ', 'ἔ', 'ἕ', 'ὲ', 'έ', 'е', 'ё', 'э',
-						'є', 'ə', 'ဧ', 'ေ', 'ဲ', 'ე', 'ए', 'إ', 'ئ', 'ｅ'],
-			'f'     => ['ф', 'φ', 'ف', 'ƒ', 'ფ', 'ｆ'],
-			'g'     => ['ĝ', 'ğ', 'ġ', 'ģ', 'г', 'ґ', 'γ', 'ဂ', 'გ', 'گ',
-						'ｇ'],
-			'h'     => ['ĥ', 'ħ', 'η', 'ή', 'ح', 'ه', 'ဟ', 'ှ', 'ჰ', 'ｈ'],
-			'i'     => ['í', 'ì', 'ỉ', 'ĩ', 'ị', 'î', 'ï', 'ī', 'ĭ', 'į',
-						'ı', 'ι', 'ί', 'ϊ', 'ΐ', 'ἰ', 'ἱ', 'ἲ', 'ἳ', 'ἴ',
-						'ἵ', 'ἶ', 'ἷ', 'ὶ', 'ί', 'ῐ', 'ῑ', 'ῒ', 'ΐ', 'ῖ',
-						'ῗ', 'і', 'ї', 'и', 'ဣ', 'ိ', 'ီ', 'ည်', 'ǐ', 'ი',
-						'इ', 'ی', 'ｉ'],
-			'j'     => ['ĵ', 'ј', 'Ј', 'ჯ', 'ج', 'ｊ'],
-			'k'     => ['ķ', 'ĸ', 'к', 'κ', 'Ķ', 'ق', 'ك', 'က', 'კ', 'ქ',
-						'ک', 'ｋ'],
-			'l'     => ['ł', 'ľ', 'ĺ', 'ļ', 'ŀ', 'л', 'λ', 'ل', 'လ', 'ლ',
-						'ｌ'],
-			'm'     => ['м', 'μ', 'م', 'မ', 'მ', 'ｍ'],
-			'n'     => ['ñ', 'ń', 'ň', 'ņ', 'ŉ', 'ŋ', 'ν', 'н', 'ن', 'န',
-						'ნ', 'ｎ'],
-			'o'     => ['ó', 'ò', 'ỏ', 'õ', 'ọ', 'ô', 'ố', 'ồ', 'ổ', 'ỗ',
-						'ộ', 'ơ', 'ớ', 'ờ', 'ở', 'ỡ', 'ợ', 'ø', 'ō', 'ő',
-						'ŏ', 'ο', 'ὀ', 'ὁ', 'ὂ', 'ὃ', 'ὄ', 'ὅ', 'ὸ', 'ό',
-						'о', 'و', 'θ', 'ို', 'ǒ', 'ǿ', 'º', 'ო', 'ओ', 'ｏ',
-						'ö'],
-			'p'     => ['п', 'π', 'ပ', 'პ', 'پ', 'ｐ'],
-			'q'     => ['ყ', 'ｑ'],
-			'r'     => ['ŕ', 'ř', 'ŗ', 'р', 'ρ', 'ر', 'რ', 'ｒ'],
-			's'     => ['ś', 'š', 'ş', 'с', 'σ', 'ș', 'ς', 'س', 'ص', 'စ',
-						'ſ', 'ს', 'ｓ'],
-			't'     => ['ť', 'ţ', 'т', 'τ', 'ț', 'ت', 'ط', 'ဋ', 'တ', 'ŧ',
-						'თ', 'ტ', 'ｔ'],
-			'u'     => ['ú', 'ù', 'ủ', 'ũ', 'ụ', 'ư', 'ứ', 'ừ', 'ử', 'ữ',
-						'ự', 'û', 'ū', 'ů', 'ű', 'ŭ', 'ų', 'µ', 'у', 'ဉ',
-						'ု', 'ူ', 'ǔ', 'ǖ', 'ǘ', 'ǚ', 'ǜ', 'უ', 'उ', 'ｕ',
-						'ў', 'ü'],
-			'v'     => ['в', 'ვ', 'ϐ', 'ｖ'],
-			'w'     => ['ŵ', 'ω', 'ώ', 'ဝ', 'ွ', 'ｗ'],
-			'x'     => ['χ', 'ξ', 'ｘ'],
-			'y'     => ['ý', 'ỳ', 'ỷ', 'ỹ', 'ỵ', 'ÿ', 'ŷ', 'й', 'ы', 'υ',
-						'ϋ', 'ύ', 'ΰ', 'ي', 'ယ', 'ｙ'],
-			'z'     => ['ź', 'ž', 'ż', 'з', 'ζ', 'ز', 'ဇ', 'ზ', 'ｚ'],
-			'aa'    => ['ع', 'आ', 'آ'],
-			'ae'    => ['æ', 'ǽ'],
-			'ai'    => ['ऐ'],
-			'ch'    => ['ч', 'ჩ', 'ჭ', 'چ'],
-			'dj'    => ['ђ', 'đ'],
-			'dz'    => ['џ', 'ძ'],
-			'ei'    => ['ऍ'],
-			'gh'    => ['غ', 'ღ'],
-			'ii'    => ['ई'],
-			'ij'    => ['ĳ'],
-			'kh'    => ['х', 'خ', 'ხ'],
-			'lj'    => ['љ'],
-			'nj'    => ['њ'],
-			'oe'    => ['œ', 'ؤ'],
-			'oi'    => ['ऑ'],
-			'oii'   => ['ऒ'],
-			'ps'    => ['ψ'],
-			'sh'    => ['ш', 'შ', 'ش'],
-			'shch'  => ['щ'],
-			'ss'    => ['ß'],
-			'sx'    => ['ŝ'],
-			'th'    => ['þ', 'ϑ', 'ث', 'ذ', 'ظ'],
-			'ts'    => ['ц', 'ც', 'წ'],
-			'uu'    => ['ऊ'],
-			'ya'    => ['я'],
-			'yu'    => ['ю'],
-			'zh'    => ['ж', 'ჟ', 'ژ'],
-			'(c)'   => ['©'],
-			'A'     => ['Á', 'À', 'Ả', 'Ã', 'Ạ', 'Ă', 'Ắ', 'Ằ', 'Ẳ', 'Ẵ',
-						'Ặ', 'Â', 'Ấ', 'Ầ', 'Ẩ', 'Ẫ', 'Ậ', 'Å', 'Ā', 'Ą',
-						'Α', 'Ά', 'Ἀ', 'Ἁ', 'Ἂ', 'Ἃ', 'Ἄ', 'Ἅ', 'Ἆ', 'Ἇ',
-						'ᾈ', 'ᾉ', 'ᾊ', 'ᾋ', 'ᾌ', 'ᾍ', 'ᾎ', 'ᾏ', 'Ᾰ', 'Ᾱ',
-						'Ὰ', 'Ά', 'ᾼ', 'А', 'Ǻ', 'Ǎ', 'Ａ', 'Ä'],
-			'B'     => ['Б', 'Β', 'ब', 'Ｂ'],
-			'C'     => ['Ç','Ć', 'Č', 'Ĉ', 'Ċ', 'Ｃ'],
-			'D'     => ['Ď', 'Ð', 'Đ', 'Ɖ', 'Ɗ', 'Ƌ', 'ᴅ', 'ᴆ', 'Д', 'Δ',
-						'Ｄ'],
-			'E'     => ['É', 'È', 'Ẻ', 'Ẽ', 'Ẹ', 'Ê', 'Ế', 'Ề', 'Ể', 'Ễ',
-						'Ệ', 'Ë', 'Ē', 'Ę', 'Ě', 'Ĕ', 'Ė', 'Ε', 'Έ', 'Ἐ',
-						'Ἑ', 'Ἒ', 'Ἓ', 'Ἔ', 'Ἕ', 'Έ', 'Ὲ', 'Е', 'Ё', 'Э',
-						'Є', 'Ə', 'Ｅ'],
-			'F'     => ['Ф', 'Φ', 'Ｆ'],
-			'G'     => ['Ğ', 'Ġ', 'Ģ', 'Г', 'Ґ', 'Γ', 'Ｇ'],
-			'H'     => ['Η', 'Ή', 'Ħ', 'Ｈ'],
-			'I'     => ['Í', 'Ì', 'Ỉ', 'Ĩ', 'Ị', 'Î', 'Ï', 'Ī', 'Ĭ', 'Į',
-						'İ', 'Ι', 'Ί', 'Ϊ', 'Ἰ', 'Ἱ', 'Ἳ', 'Ἴ', 'Ἵ', 'Ἶ',
-						'Ἷ', 'Ῐ', 'Ῑ', 'Ὶ', 'Ί', 'И', 'І', 'Ї', 'Ǐ', 'ϒ',
-						'Ｉ'],
-			'J'     => ['Ｊ'],
-			'K'     => ['К', 'Κ', 'Ｋ'],
-			'L'     => ['Ĺ', 'Ł', 'Л', 'Λ', 'Ļ', 'Ľ', 'Ŀ', 'ल', 'Ｌ'],
-			'M'     => ['М', 'Μ', 'Ｍ'],
-			'N'     => ['Ń', 'Ñ', 'Ň', 'Ņ', 'Ŋ', 'Н', 'Ν', 'Ｎ'],
-			'O'     => ['Ó', 'Ò', 'Ỏ', 'Õ', 'Ọ', 'Ô', 'Ố', 'Ồ', 'Ổ', 'Ỗ',
-						'Ộ', 'Ơ', 'Ớ', 'Ờ', 'Ở', 'Ỡ', 'Ợ', 'Ø', 'Ō', 'Ő',
-						'Ŏ', 'Ο', 'Ό', 'Ὀ', 'Ὁ', 'Ὂ', 'Ὃ', 'Ὄ', 'Ὅ', 'Ὸ',
-						'Ό', 'О', 'Θ', 'Ө', 'Ǒ', 'Ǿ', 'Ｏ', 'Ö'],
-			'P'     => ['П', 'Π', 'Ｐ'],
-			'Q'     => ['Ｑ'],
-			'R'     => ['Ř', 'Ŕ', 'Р', 'Ρ', 'Ŗ', 'Ｒ'],
-			'S'     => ['Ş', 'Ŝ', 'Ș', 'Š', 'Ś', 'С', 'Σ', 'Ｓ'],
-			'T'     => ['Ť', 'Ţ', 'Ŧ', 'Ț', 'Т', 'Τ', 'Ｔ'],
-			'U'     => ['Ú', 'Ù', 'Ủ', 'Ũ', 'Ụ', 'Ư', 'Ứ', 'Ừ', 'Ử', 'Ữ',
-						'Ự', 'Û', 'Ū', 'Ů', 'Ű', 'Ŭ', 'Ų', 'У', 'Ǔ', 'Ǖ',
-						'Ǘ', 'Ǚ', 'Ǜ', 'Ｕ', 'Ў', 'Ü'],
-			'V'     => ['В', 'Ｖ'],
-			'W'     => ['Ω', 'Ώ', 'Ŵ', 'Ｗ'],
-			'X'     => ['Χ', 'Ξ', 'Ｘ'],
-			'Y'     => ['Ý', 'Ỳ', 'Ỷ', 'Ỹ', 'Ỵ', 'Ÿ', 'Ῠ', 'Ῡ', 'Ὺ', 'Ύ',
-						'Ы', 'Й', 'Υ', 'Ϋ', 'Ŷ', 'Ｙ'],
-			'Z'     => ['Ź', 'Ž', 'Ż', 'З', 'Ζ', 'Ｚ'],
-			'AE'    => ['Æ', 'Ǽ'],
-			'Ch'    => ['Ч'],
-			'Dj'    => ['Ђ'],
-			'Dz'    => ['Џ'],
-			'Gx'    => ['Ĝ'],
-			'Hx'    => ['Ĥ'],
-			'Ij'    => ['Ĳ'],
-			'Jx'    => ['Ĵ'],
-			'Kh'    => ['Х'],
-			'Lj'    => ['Љ'],
-			'Nj'    => ['Њ'],
-			'Oe'    => ['Œ'],
-			'Ps'    => ['Ψ'],
-			'Sh'    => ['Ш'],
-			'Shch'  => ['Щ'],
-			'Ss'    => ['ẞ'],
-			'Th'    => ['Þ'],
-			'Ts'    => ['Ц'],
-			'Ya'    => ['Я'],
-			'Yu'    => ['Ю'],
-			'Zh'    => ['Ж'],
-			' '     => ["\xC2\xA0", "\xE2\x80\x80", "\xE2\x80\x81",
-						"\xE2\x80\x82", "\xE2\x80\x83", "\xE2\x80\x84",
-						"\xE2\x80\x85", "\xE2\x80\x86", "\xE2\x80\x87",
-						"\xE2\x80\x88", "\xE2\x80\x89", "\xE2\x80\x8A",
-						"\xE2\x80\xAF", "\xE2\x81\x9F", "\xE3\x80\x80",
-						"\xEF\xBE\xA0"],
-		];
-	}
-
-	/**
-	 * Returns language-specific replacements for the toAscii() method.
-	 * For example, German will map 'ä' to 'ae', while other languages
-	 * will simply return 'a'.
-	 *
-	 * @param  string $language Language of the source string
-	 * @return array  An array of replacements.
-	 */
-	protected static function langSpecificCharsArray($language = 'en')
-	{
-		trigger_error('Function ' . __METHOD__ . ' not implemented yet');
-
-		$split = preg_split('/[-_]/', $language);
-		$language = strtolower($split[0]);
-
-		static $charsArray = [];
-		if (isset($charsArray[$language])) {
-			return $charsArray[$language];
-		}
-
-		$languageSpecific = [
-			'de' => [
-				['ä',  'ö',  'ü',  'Ä',  'Ö',  'Ü' ],
-				['ae', 'oe', 'ue', 'AE', 'OE', 'UE'],
-			],
-			'bg' => [
-				['х', 'Х', 'щ', 'Щ', 'ъ', 'Ъ', 'ь', 'Ь'],
-				['h', 'H', 'sht', 'SHT', 'a', 'А', 'y', 'Y']
-			]
-		];
-
-		if (isset($languageSpecific[$language])) {
-			$charsArray[$language] = $languageSpecific[$language];
-		} else {
-			$charsArray[$language] = [];
-		}
-
-		return $charsArray[$language];
-	}
-
-	/**
-	 * Adds the specified amount of left and right padding to the given string.
-	 * The default character used is a space.
-	 *
-	 * @param  int    $left   Length of left padding
-	 * @param  int    $right  Length of right padding
-	 * @param  string $padStr String used to pad
-	 * @return static String with padding applied
-	 */
-	protected function applyPadding($left = 0, $right = 0, $padStr = ' ')
-	{
-		trigger_error('Function ' . __METHOD__ . ' not implemented yet');
-
-		$stringy = static::create($this->str, $this->encoding);
-		$length = \mb_strlen($padStr, $stringy->encoding);
-
-		$strLength = $stringy->length();
-		$paddedLength = $strLength + $left + $right;
-
-		if (!$length || $paddedLength <= $strLength) {
-			return $stringy;
-		}
-
-		$leftPadding = \mb_substr(str_repeat($padStr, ceil($left / $length)), 0, $left, $stringy->encoding);
-		$rightPadding = \mb_substr(str_repeat($padStr, ceil($right / $length)), 0, $right, $stringy->encoding);
-
-		$stringy->str = $leftPadding . $stringy->str . $rightPadding;
-
-		return $stringy;
-	}
-
-	/**
-	 * Returns true if $str matches the supplied pattern, false otherwise.
-	 *
-	 * @param  string $pattern Regex pattern to match against
-	 * @return bool   Whether or not $str matches the pattern
-	 */
-	protected function matchesPattern($pattern)
-	{
-		trigger_error('Function ' . __METHOD__ . ' not implemented yet');
-
-		$regexEncoding = $this->regexEncoding();
-		$this->regexEncoding($this->encoding);
-
-		$match = \mb_ereg_match($pattern, $this->str);
-		$this->regexEncoding($regexEncoding);
-
-		return $match;
-	}
-
-	/**
-	 * Alias for mb_ereg_replace with a fallback to preg_replace if the
-	 * mbstring module is not installed.
-	 */
-	protected function eregReplace($pattern, $replacement, $string, $option = 'msr')
-	{
-		trigger_error('Function ' . __METHOD__ . ' not implemented yet');
-
-		static $functionExists;
-		if ($functionExists === null) {
-			$functionExists = function_exists('\mb_split');
-		}
-
-		if ($functionExists) {
-			return \mb_ereg_replace($pattern, $replacement, $string, $option);
-		} else if ($this->supportsEncoding()) {
-			$option = str_replace('r', '', $option);
-			return \preg_replace("/$pattern/u$option", $replacement, $string);
-		}
-	}
-
-	/**
-	 * Alias for mb_regex_encoding which default to a noop if the mbstring
-	 * module is not installed.
-	 */
-	protected function regexEncoding()
-	{
-		trigger_error('Function ' . __METHOD__ . ' not implemented yet');
-
-		static $functionExists;
-
-		if ($functionExists === null) {
-			$functionExists = function_exists('\mb_regex_encoding');
-		}
-
-		if ($functionExists) {
-			$args = func_get_args();
-			return call_user_func_array('\mb_regex_encoding', $args);
-		}
-	}
-
-	/**
-	 * Returns a string with whitespace removed from the start and end of the string.
-	 * Supports the removal of unicode whitespace.
-	 * Accepts an optional string of characters to strip instead of the defaults.
-	 *
-	 * @param  string $character_mask Optional string of characters to strip
-	 * @return static Object with a trimmed $str
-	 */
-	public function rtrim(string $character_mask = " \t\n\r\0\x0B")
-	{
-		return new static(\rtrim($this->str, $character_mask));
-	}
+	/**************************************************************************\
+	 ***                         GETTERS AND SETTERS                        ***
+	\**************************************************************************/
 
 
 	function __get($name)
 	{
+		static $formats	=	[	'year'				=>	'Y',
+								'yearIso'			=>	'o',
+								'month'				=>	'n',
+								'day'				=>	'j',
+								'hour'				=>	'G',
+								'minute'			=>	'i',
+								'second'			=>	's',
+
+								'micro'				=>	'u',
+								'microsecond'		=>	'u',
+								'microseconds'		=>	'u',
+							//	case 'microsecond':		return parent::format('u');				//	https://github.com/joomla-framework/date/blob/master/src/Date.php								Microseconds. Note that date() will always generate 000000 since it takes an integer parameter, whereas DateTime::format() does support microseconds if DateTime was created with microseconds.
+
+								'dayOfWeek'			=>	'w',
+								'dayofweek'			=>	'w',	//	MySQL + 1 ???
+								'day_of_week'		=>	'w',	//	MySQL + 1 ???
+							//	case 'dayofweek':		return parent::format('w') + 1;			//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_dayofweek			MySQL: 1 = Sunday, 2 = Monday, …, 7 = Saturday		'w' = 0 (for Sunday) through 6 (for Saturday)
+
+								'dayOfYear'			=>	'z',
+								'dayofyear'			=>	'z',	//	MySQL + 1 ???
+								'day_of_year'		=>	'z',	//	MySQL + 1 ???
+							//	case 'dayofyear':		return parent::format('z') + 1;			//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_dayofyear			MySQL: Returns the day of the year for date, in the range 1 to 366.
+
+								'weekOfYear'		=>	'W',
+								'weekofyear'		=>	'W',
+								'week_of_year'		=>	'W',
+							//	case 'weekofyear':		break;									//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_weekofyear		MySQL: Returns the calendar week of the date as a number in the range from 1 to 53. WEEKOFYEAR() is a compatibility function that is equivalent to WEEK(date,3).
+
+								'daysInMonth'		=>	't',
+								'daysinmonth'		=>	't',
+								'days_in_month'		=>	't',
+							//	case 'daysinmonth':		return parent::format('t');				//	https://github.com/joomla-framework/date/blob/master/src/Date.php								Number of days in the given month
+
+								'monthName'			=>	'F',
+								'monthname'			=>	'F',
+								'month_name'		=>	'F',
+							//	case 'monthname':		return parent::format('F');				//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_monthname			MySQL: Returns the full name of the month for date. The language used for the name is controlled by the value of the lc_time_names system variable
+
+								'dayOfMonth'		=>	'j',
+								'dayofmonth'		=>	'j',
+								'day_of_month'		=>	'j',
+							//	case 'dayofmonth':		return parent::format('j');				//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_dayofmonth		MySQL: Returns the day of the month for date, in the range 1 to 31, or 0 for dates such as '0000-00-00' or '2008-00-00' that have a zero day part.
+
+								'timestamp'			=>	'U',
+								'TIMESTAMP'			=>	'U',
+							//	case 'timestamp':		return parent::format('Y-m-d H:i:s');	//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_timestamp			MySQL: With a single argument, this function returns the date or datetime expression expr as a datetime value. With two arguments, it adds the time expression expr2 to the date or datetime expression expr1 and returns the result as a datetime value.
+
+								'UNIX_TIMESTAMP'	=>	'U',
+								'unix_timestamp'	=>	'U',
+								'unixTimestamp'		=>	'U',
+							//	case 'unix_timestamp':	return parent::format('U');				//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_unix-timestamp	MySQL: If called with no argument, returns a Unix timestamp (seconds since '1970-01-01 00:00:00' UTC).
+
+								'date'				=>	'Y-m-d',
+							//	case 'date':			return parent::format('Y-m-d');			//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_date				MySQL: Extracts the date part of the date or datetime expression expr.
+
+								'dayname'			=>	'l',
+							//	case 'dayname':			return parent::format('l');				//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_dayname			MySQL: Returns the name of the weekday for date. The language used for the name is controlled by the value of the lc_time_names system variable
+
+								'dayname'			=>	'Y-m-t',
+							//	case 'last_day':		return parent::format('Y-m-t');			//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_last-day			MySQL: eg. '2003-02-28' Takes a date or datetime value and returns the corresponding value for the last day of the month. Returns NULL if the argument is invalid.
+
+								'isLeapYear'		=>	'Y-m-t',
+								'isleapyear'		=>	'Y-m-t',
+								'is_leap_year'		=>	'Y-m-t',
+							//	case 'isleapyear':		return parent::format('L');				//	https://github.com/joomla-framework/date/blob/master/src/Date.php								Whether it's a leap year
+
+								'daySuffix'			=>	'S',
+								'suffix'			=>	'S',									//	the term `suffix` is used in some classes
+								'ordinal'			=>	'S',
+							//	case 'ordinal':			return parent::format('S');				//	https://github.com/joomla-framework/date/blob/master/src/Date.php								English ordinal suffix for the day of the month, 2 characters
+
+								//	Also in MySQL! We need to test this!
+								'week'				=>	'W',
+							//	case 'week':			return parent::format('W');				//	https://github.com/joomla-framework/date/blob/master/src/Date.php								ISO-8601 week number of year, weeks starting on Monday
+
+								//	@aliases
+								'TimeZone'			=>	'P',
+								'timeZone'			=>	'P',
+								'timezone'			=>	'P',
+								'time_zone'			=>	'P',
+								'tz'				=>	'P',
+							//	case 'timezone':		return parent::format('P');				//	http://php.net/manual/en/function.date.php														Difference to Greenwich time (GMT) with colon between hours and minutes (added in PHP 5.1.3)
+							//	case 'time_zone':		return parent::format('P');				//	http://php.net/manual/en/function.date.php														Difference to Greenwich time (GMT) with colon between hours and minutes (added in PHP 5.1.3)
+							//	case 'tz':				return parent::format('P');				//	http://php.net/manual/en/function.date.php														Difference to Greenwich time (GMT) with colon between hours and minutes (added in PHP 5.1.3)
+
+								//	@link	http://php.net/manual/en/function.date.php
+								'd'					=>	'd',
+								'D'					=>	'D',
+								'j'					=>	'j',
+								'l'					=>	'l',
+								'N'					=>	'N',
+								'S'					=>	'S',
+								'w'					=>	'w',
+								'z'					=>	'z',
+								'W'					=>	'W',
+								'F'					=>	'F',
+								'm'					=>	'm',
+								'M'					=>	'M',
+								'n'					=>	'n',
+								't'					=>	't',
+								'L'					=>	'L',
+								'o'					=>	'o',
+								'Y'					=>	'Y',
+								'y'					=>	'y',
+								'a'					=>	'a',
+								'A'					=>	'A',
+								'B'					=>	'B',
+								'g'					=>	'g',
+								'G'					=>	'G',
+								'h'					=>	'h',
+								'H'					=>	'H',
+								'i'					=>	'i',
+								's'					=>	's',
+								'u'					=>	'u',
+								'v'					=>	'v',
+								'e'					=>	'e',
+								'I'					=>	'I',
+								'O'					=>	'O',
+								'P'					=>	'P',
+								'T'					=>	'T',
+								'Z'					=>	'Z',
+								'c'					=>	'c',
+								'r'					=>	'r',
+								'U'					=>	'U',
+							];
+
+		if (isset($formats[$name]))
+			return $this->format($formats[$name]);
+
+	//	if (strlen($name) === 1)
+	//		return parent::format($name);
+
+		/*
+			//	http://php.net/manual/en/function.date.php
+			case 'd':	return ;				//	Day of the month, 2 digits with leading zeros										eg. 01 to 31
+			case 'D':	return ;				//	A textual representation of a day, three letters									eg. Mon through Sun
+			case 'j':	return ;				//	Day of the month without leading zeros												eg. 1 to 31
+			case 'l':	return ;				//	A full textual representation of the day of the week								eg. Sunday through Saturday
+			case 'N':	return ;				//	ISO-8601 numeric representation of the day of the week (added in PHP 5.1.0			eg. 1 (for Monday) through 7 (for Sunday)
+			case 'S':	return ;				//	English ordinal suffix for the day of the month, 2 characters						eg.	st, nd, rd or th. Works well with j
+			case 'w':	return ;				//	Numeric representation of the day of the week										eg. 0 (for Sunday) through 6 (for Saturday)
+			case 'z':	return ;				//	The day of the year (starting from 0)												eg. 0 through 365
+			case 'W':	return ;				//	ISO-8601 week number of year, weeks starting on Monday								eg. Example: 42 (the 42nd week in the year)
+			case 'F':	return ;				//	A full textual representation of a month, such as January or March					eg. January through December
+			case 'm':	return ;				//	Numeric representation of a month, with leading zeros								eg. 01 through 12
+			case 'M':	return ;				//	A short textual representation of a month, three letters							eg. Jan through Dec
+			case 'n':	return ;				//	Numeric representation of a month, without leading zeros							eg. 1 through 12
+			case 't':	return ;				//	Number of days in the given month													eg. 28 through 31
+			case 'L':	return ;				//	Whether it's a leap year															eg. 1 if it is a leap year, 0 otherwise.
+			case 'o':	return ;				//	ISO-8601 week-numbering year. This has the same value as Y, except that if the ISO week number (W) belongs to the previous or next year, that year is used instead. (added in PHP 5.1.0)			eg. Examples: 1999 or 2003
+			case 'Y':	return ;				//	A full numeric representation of a year, 4 digits									eg. Examples: 1999 or 2003
+			case 'y':	return ;				//	A two digit representation of a year												eg. Examples: 99 or 03
+			case 'U':	return ;				//	Seconds since the Unix Epoch (January 1 1970 00:00:00 GMT)							eg. See also time()
+		*/
+
+		if ( ! ctype_lower($name))
+			$name = strtolower($name);
+
+		//	@link	http://www.tutorialspoint.com/mysql/mysql-date-time-functions.htm
+		//	@link	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html
+
 		switch ($name)
 		{
-			case 'length':		return \strlen($this->str);
+			case 'dayname':			return parent::format('l');				//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_dayname			MySQL: Returns the name of the weekday for date. The language used for the name is controlled by the value of the lc_time_names system variable
+			case 'dayofweek':		return parent::format('w') + 1;			//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_dayofweek			MySQL: 1 = Sunday, 2 = Monday, …, 7 = Saturday		'w' = 0 (for Sunday) through 6 (for Saturday)
+			case 'dayofmonth':		return parent::format('j');				//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_dayofmonth		MySQL: Returns the day of the month for date, in the range 1 to 31, or 0 for dates such as '0000-00-00' or '2008-00-00' that have a zero day part.
+			case 'dayofyear':		return parent::format('z') + 1;			//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_dayofyear			MySQL: Returns the day of the year for date, in the range 1 to 366.
+			case 'monthname':		return parent::format('F');				//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_monthname			MySQL: Returns the full name of the month for date. The language used for the name is controlled by the value of the lc_time_names system variable
+			case 'timestamp':		return parent::format('Y-m-d H:i:s');	//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_timestamp			MySQL: With a single argument, this function returns the date or datetime expression expr as a datetime value. With two arguments, it adds the time expression expr2 to the date or datetime expression expr1 and returns the result as a datetime value.
+			case 'unix_timestamp':	return parent::format('U');				//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_unix-timestamp	MySQL: If called with no argument, returns a Unix timestamp (seconds since '1970-01-01 00:00:00' UTC).
+			case 'to_days':			break;									//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_to-days			MySQL: Given a date date, returns a day number (the number of days since year 0).
+			case 'quarter':			return (int) ceil(parent::format('m') / 3);		//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_quarter	MySQL: Returns the quarter of the year for date, in the range 1 to 4.
+			case 'week':			break;									//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_week				MySQL: This function returns the week number for date. The two-argument form of WEEK() enables you to specify whether the week starts on Sunday or Monday and whether the return value should be in the range from 0 to 53 or from 1 to 53. If the mode argument is omitted, the value of the default_week_format system variable is used. See Section 5.1.5, “Server System Variables”.
+			case 'weekday':			return parent::format('N') - 1;			//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_weekday			MySQL: Returns the weekday index for date (0 = Monday, 1 = Tuesday, … 6 = Sunday).
+			case 'weekofyear':		break;									//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_weekofyear		MySQL: Returns the calendar week of the date as a number in the range from 1 to 53. WEEKOFYEAR() is a compatibility function that is equivalent to WEEK(date,3).
+			case 'yearweek':		break;									//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_yearweek			MySQL: Returns year and week for a date. The year in the result may be different from the year in the date argument for the first and the last week of the year.
+			case 'date':			return parent::format('Y-m-d');			//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_date				MySQL: Extracts the date part of the date or datetime expression expr.
 
+			case 'utc_date':												//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_utc-date			MySQL: Returns the current UTC date as a value in 'YYYY-MM-DD' or YYYYMMDD format, depending on whether the function is used in a string or numeric context.
+					//	@todo
+					//	create a new UTC datetime/timestamp based on this
+					//	if ($this->getTimezone() !== self::$utc) ...
+					return parent::format('Y-m-d');
+
+			case 'utc_time':												//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_utc-time			MySQL: Returns the current UTC time as a value in 'HH:MM:SS'
+					//	@todo
+					return parent::format('H:i:s');
+
+			case 'utc_timestamp':											//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_utc-timestamp		MySQL: Returns the current UTC date and time as a value in 'YYYY-MM-DD HH:MM:SS' or YYYYMMDDHHMMSS format, depending on whether the function is used in a string or numeric context.
+					//	@todo
+					return parent::format('Y-m-d H:i:s');
+
+			case 'weekOfMonth':
+			case 'weekofmonth':
+			case 'week_of_month':
+					return (int) ceil(parent::format('d') / 7);				//	Taken from: https://github.com/briannesbitt/Carbon/blob/master/src/Carbon/Carbon.php
+
+			case 'gmt':				return $this->getOffset() === 0;		//	my idea
+			case 'utc':				return $this->getOffset() === 0;		//	Taken from: https://github.com/briannesbitt/Carbon/blob/master/src/Carbon/Carbon.php
+			case 'dst':				return $this->format('I') === '1';		//	Taken from: https://github.com/briannesbitt/Carbon/blob/master/src/Carbon/Carbon.php
+			case 'age':				return $this->diffInYears();			//	Taken from: https://github.com/briannesbitt/Carbon/blob/master/src/Carbon/Carbon.php
+			case 'offset':			return $this->getOffset();				//	Taken from: https://github.com/briannesbitt/Carbon/blob/master/src/Carbon/Carbon.php
+			case 'offsetHours':
+					return $this->getOffset() / 60 / 60;					//	Taken from: https://github.com/briannesbitt/Carbon/blob/master/src/Carbon/Carbon.php
+
+			case 'last_day':		return parent::format('Y-m-t');			//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_last-day			MySQL: eg. '2003-02-28' Takes a date or datetime value and returns the corresponding value for the last day of the month. Returns NULL if the argument is invalid.
+			case 'daysinmonth':		return parent::format('t');				//	https://github.com/joomla-framework/date/blob/master/src/Date.php								Number of days in the given month
+
+			case 'isleapyear':		return parent::format('L');				//	https://github.com/joomla-framework/date/blob/master/src/Date.php								Whether it's a leap year
+			case 'microsecond':		return parent::format('u');				//	https://github.com/joomla-framework/date/blob/master/src/Date.php								Microseconds. Note that date() will always generate 000000 since it takes an integer parameter, whereas DateTime::format() does support microseconds if DateTime was created with microseconds.
+			case 'ordinal':			return parent::format('S');				//	https://github.com/joomla-framework/date/blob/master/src/Date.php								English ordinal suffix for the day of the month, 2 characters
+
+			//	Also in MySQL! We need to test this!
+			case 'week':			return parent::format('W');				//	https://github.com/joomla-framework/date/blob/master/src/Date.php								ISO-8601 week number of year, weeks starting on Monday
+
+			case 'tz':				// @alias 	timezone					//	Taken from: https://github.com/briannesbitt/Carbon/blob/master/src/Carbon/Carbon.php
+			case 'timezone':		return parent::getTimezone();			//	Taken from: https://github.com/briannesbitt/Carbon/blob/master/src/Carbon/Carbon.php
+			case 'timezoneName':	// @alias 	tzName						//	Taken from: https://github.com/briannesbitt/Carbon/blob/master/src/Carbon/Carbon.php
+			case 'tzName':			return $this->getTimezone()->getName();	//	Taken from: https://github.com/briannesbitt/Carbon/blob/master/src/Carbon/Carbon.php
+
+			case 'timezone':		return parent::format('P');				//	http://php.net/manual/en/function.date.php														Difference to Greenwich time (GMT) with colon between hours and minutes (added in PHP 5.1.3)
+			case 'time_zone':		return parent::format('P');				//	http://php.net/manual/en/function.date.php														Difference to Greenwich time (GMT) with colon between hours and minutes (added in PHP 5.1.3)
+			case 'tz':				return parent::format('P');				//	http://php.net/manual/en/function.date.php														Difference to Greenwich time (GMT) with colon between hours and minutes (added in PHP 5.1.3)
+
+				throw new \InvalidArgumentException('TODO: Property ->' . $name . ' not implemented yet');
+
+			//	strtolower($name) versions
+			case 'year':			return parent::format('Y');
+			case 'month':			return parent::format('m');
+			case 'day':				return parent::format('d');
+
+			case 'hour':			return parent::format('G');			//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_hour				MySQL: Returns the hour for time. The range of the return value is 0 to 23 for time-of-day values. However, the range of TIME values actually is much larger, so HOUR can return values greater than 23.
+			case 'minute':			return parent::format('i');			//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_minute			MySQL: Returns the minute for time, in the range 0 to 59.
+			case 'second':			return parent::format('s');			//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_hour				MySQL: Returns the second for time, in the range 0 to 59.
+		}
+
+		throw new \InvalidArgumentException('Property ->' . $name . ' does not exist!');
+	}
+
+
+	/**
+	 *	Check if an attribute exists on the object
+	 *
+	 *	@param string $name
+	 *
+	 *	@return bool
+	 */
+	public function __isset($name)
+	{
+		try {
+			$this->__get($name);
+		} catch (\InvalidArgumentException $e) {
+			return false;
+		}
+		return true;
+	}
+
+
+	/**
+	 *	Set a part of the Carbon object
+	 *
+	 *	@param string                   $name
+	 *	@param string|int|\DateTimeZone $value
+	 *
+	 *	@throws \InvalidArgumentException
+	 *
+	 *	@returns value ??? do we need to do this?
+	 *		PHP seems to return the $value automatically!
+	 */
+	public function __set($name, $value)
+	{
+		switch ($name)
+		{
+			case 'year':
+			case 'month':
+			case 'day':
+				list($year, $month, $day) = explode('-', parent::format('Y-n-j'));
+				$$name = $value;
+				$this->setDate($year, $month, $day);
+				break;
+			case 'hour':
+			case 'minute':
+			case 'second':
+				list($hour, $minute, $second) = explode('-', parent::format('G-i-s'));
+				$$name = $value;
+				$this->setTime($hour, $minute, $second);
+				break;
+			case 'timestamp':								//	doesn't work!	Never gets here! I believe `timezone` is an internal property?
+				parent::setTimestamp($value);
+				break;
+			case 'timezone':
+			case 'tz':
+			case 'timeZone':
+			case 'time_zone':
+				$this->setTimezone($value);
+				break;
 			default:
-
-				if ( ! ctype_lower($name))
-					$name = strtolower($name);
-
-				if (self::$hashAlgos === null)
-					self::$hashAlgos = array_flip(hash_algos());	//	set the hash algorithms as keys for faster lookup with isset() instead of in_array()!
-
-				if (isset(self::$hashAlgos[$name]))					//	we converted the hash name to lowercase above so we can safely support this: $this->Sha256
-					return hash($name, $this->str);
-
-				//--- Start of alias and mixed-case properties ---//
-
-				switch ($name)
-				{
-					//	possible mixed-case variants `normalized` to lowercase. eg. `Scheme` => `scheme`
-					case 'length':		return \strlen($this->str);
-				}
+				throw new \InvalidArgumentException("Property ->{$name} cannot be set!");
 		}
 	}
 
-	static function curdate($format = 'Y-m-d')
+	/**
+	 * Set the instance's year
+	 *
+	 * @param int $value
+	 *
+	 * @return static
+	 */
+	public function year($value)
 	{
-		return new static(date($format));
+		$this->year = $value;
+		return $this;
+	}
+	/**
+	 * Set the instance's month
+	 *
+	 * @param int $value
+	 *
+	 * @return static
+	 */
+	public function month($value)
+	{
+		$this->month = $value;
+		return $this;
+	}
+	/**
+	 * Set the instance's day
+	 *
+	 * @param int $value
+	 *
+	 * @return static
+	 */
+	public function day($value)
+	{
+		$this->day = $value;
+		return $this;
+	}
+	/**
+	 * Set the instance's hour
+	 *
+	 * @param int $value
+	 *
+	 * @return static
+	 */
+	public function hour($value)
+	{
+		$this->hour = $value;
+		return $this;
+	}
+	/**
+	 * Set the instance's minute
+	 *
+	 * @param int $value
+	 *
+	 * @return static
+	 */
+	public function minute($value)
+	{
+		$this->minute = $value;
+		return $this;
+	}
+	/**
+	 * Set the instance's second
+	 *
+	 * @param int $value
+	 *
+	 * @return static
+	 */
+	public function second($value)
+	{
+		$this->second = $value;
+		return $this;
+	}
+
+	/**
+	 * Set the instance's timestamp
+	 *
+	 * @param int $value
+	 *
+	 * @return static
+	 */
+	public function timestamp($value)
+	{
+		return parent::setTimestamp($value);
+	}
+
+
+	/**
+	 * Alias for setTimezone()
+	 *
+	 * @param \DateTimeZone|string $value
+	 *
+	 * @return static
+	 */
+	public function timezone($value)
+	{
+		return $this->setTimezone($value);
+	}
+	/**
+	 * Alias for setTimezone()
+	 *
+	 * @param \DateTimeZone|string $value
+	 *
+	 * @return static
+	 */
+	public function tz($value)
+	{
+		return $this->setTimezone($value);
+	}
+	/**
+	 * Set the instance's timezone from a string or object
+	 *
+	 * @param \DateTimeZone|string $value
+	 *
+	 * @return static
+	 */
+	public function __setTimezone__Carbon($value)
+	{
+		return parent::setTimezone(static::safeCreateDateTimeZone($value));
+	}
+
+	/**
+	 *	Sets the current date timezone
+	 *
+	 *	@link	http://php.net/manual/en/datetime.settimezone.php
+	 *
+	 *	@param  string|DateTimeZone $timezone
+	 *	@return $this
+	 */
+	public function setTimezone($timezone = null)
+	{
+		return $this->setTimezone($timezone === null ? self::$utc : is_string($timezone) ? ($timezone === 'UTC' ? self::$utc : new \DateTimeZone($timezone)) : ($timezone instanceof \DateTimeZone ? $timezone : $timezone->getTimezone()));
+	}
+
+
+	/**
+	 * Creates a DateTimeZone from a string, DateTimeZone or integer offset.
+	 *
+	 * @param \DateTimeZone|string|int|null $timezone
+	 *
+	 * @throws \InvalidArgumentException
+	 *
+	 * @return \DateTimeZone
+	 */
+	protected static function createDateTimeZone($timezone = null, $sanitized = true)
+	{
+		if ($timezone === null) {
+			return self::$dtz;
+		}
+		if (is_string($timezone))
+		{
+			return new \DateTimeZone($sanitized ? $timezone : self::getSanitizedTimeZoneString());
+		}
+		if ($timezone instanceof \DateTimeZone) {
+			return $timezone;
+		}
+		if (is_numeric($timezone))
+		{
+			$tzName = timezone_name_from_abbr(null, $timezone < 15 && $timezone > -13 ? $timezone * 3600 : $timezone, true);	//	Timezone range is -12:00 ~ +14:00
+			if ($tzName === false)
+			{
+				throw new \InvalidArgumentException("Unknown or bad timezone ({$timezone})");
+			}
+			return new \DateTimeZone($tzName);
+		}
+		$tz = @timezone_open((string) $timezone);
+		if ($tz === false) {
+			throw new \InvalidArgumentException("Unknown or bad timezone ({$timezone})");
+		}
+		return $tz;
+	}
+
+
+	/**
+	 * Creates a DateTimeZone from a string, DateTimeZone or integer offset.
+	 *
+	 * @param \DateTimeZone|string|int|null $timezone
+	 *
+	 * @throws \InvalidArgumentException
+	 *
+	 * @return \DateTimeZone
+	 */
+	protected static function getSanitizedTimeZoneString($timezone = null)	//	AKA sanitizeDateTimeZone / getSanitizedTimeZoneString / getValidDateTimeZoneString
+	{
+		static $timezones	=	null;
+		static $abbr		=	null;
+		static $dtz			=	null;
+
+		if ($timezone === null)
+		{
+			return $dtz === null ? $dtz = date_default_timezone_get() : $dtz;
+		}
+		if (is_string($timezone))
+		{
+			if ($timezones === null) {
+				$timezones = array_flip(\DateTimeZone::listIdentifiers());
+			}
+			if (isset($timezones[$timezone]))
+				return $timezone;
+
+			if ($abbr === null) {
+				$timezones = \DateTimeZone::listAbbreviations();
+			}
+			if (isset($timezones[strtolower($timezone)]))
+				return $timezone;
+
+			if (preg_match('(?:GMT)?[-+][01]\d:?\d\d', $timezone) === 1)
+				return $timezone;
+
+			return $dtz === null ? $dtz = date_default_timezone_get() : $dtz;
+		}
+		if ($timezone instanceof \DateTimeZone)
+		{
+			return $timezone->getName();
+		}
+		if (is_numeric($timezone))
+		{
+			$tzName = timezone_name_from_abbr(null, $timezone, true);
+			if ($tzName === false)
+			{
+				throw new \InvalidArgumentException("Unknown or bad timezone ({$timezone})");
+			}
+			$timezone = $tzName;
+		}
+		$tz = @timezone_open((string) $timezone);
+		if ($tz === false) {
+			throw new \InvalidArgumentException("Unknown or bad timezone ({$timezone})");
+		}
+		return $tz;
+	}
+
+
+
+
+
+	public function getYear()
+	{
+		return parent::format('Y');
+	}
+
+	public function getMonth()
+	{
+		return parent::format('m');
+	}
+
+	public function getDay()
+	{
+		return parent::format('d');
+	}
+
+	public function getHour()
+	{
+		return parent::format('H');
+	}
+
+	public function getMinute()
+	{
+		return parent::format('i');
+	}
+
+	public function getSecond()
+	{
+		return parent::format('s');
+	}
+
+	public function getHours()		//	@alias getHour()
+	{
+		return parent::format('H');
+	}
+
+	public function getMinutes()	//	@alias getMinute()
+	{
+		return parent::format('i');
+	}
+
+	public function getSeconds()	//	@alias getSecond()
+	{
+		return parent::format('s');
+	}
+
+	/**
+	 *	'D' == A textual representation of a day, three letters									Mon through Sun
+	 *	'l' == A full textual representation of the day of the week								Sunday through Saturday
+	 *	'N' == ISO-8601 numeric representation of the day of the week (added in PHP 5.1.0)		1 (for Monday) through 7 (for Sunday)
+	 *	'w' == Numeric representation of the day of the week									0 (for Sunday) through 6 (for Saturday)
+	 */
+	public function getDayOfWeek($format = 'D')
+	{
+		return parent::format($format);
+	}
+
+
+	//	CURDATE includes timezone, use UTC_DATE() for UTC date
+	public static function curdate($tz = null)
+	{
+		return new static(date('Y-m-d'), $tz);
+	}
+
+
+	public static function utc_date()
+	{
+		return new static(gmdate('Y-m-d'), self::$utc);
+	}
+
+
+	public static function utcDate()
+	{
+		return new static(gmdate('Y-m-d'), self::$utc);
+	}
+
+
+    /**
+     *	Create a Twister\DateTime instance from the current date and time.
+     *
+     *	@param \DateTimeZone|string|null $tz
+     *
+     *	@return static
+     */
+    public static function now($tz = null)
+    {
+        return new static(null, $tz);
+    }
+
+
+	/**
+	 *	Returns true if the string contains a date in the format 'YYYY-MM-DD' AND is a valid Gregorian date
+	 *
+	 *	All date patterns MUST have 3x (..)
+	 *
+	 *	@alias isValid()
+	 *	@alias validate()
+	 *
+	 *	Alternative patterns:
+	 *		'/^(\d\d\d\d)-(\d\d)-(\d\d)$/'
+	 *		'/^(\d{4})-(\d{2})-(\d{2}) [0-2][0-3]:[0-5][0-9]:[0-5][0-9]$/'
+	 *		'/^([0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[1-2][0-9]|3[0-1])$/'
+	 *
+	 *	@link http://php.net/manual/en/function.checkdate.php
+	 *
+	 *	@return bool
+	 */
+	public static function isDate($date, $pattern = '~^([1-9]\d\d\d)[- /.](0[1-9]|1[012])[- /.](0[1-9]|[12][0-9]|3[01])$~')
+	{
+		return preg_match($pattern, $date, $matches) === 1 && checkdate($matches[2], $matches[3], $matches[1]);	//	checkdate(month, day, year)
+	}
+
+	/**
+	 *	Returns true if the string contains a date in the format 'YYYY-MM-DD' AND is a valid Gregorian date
+	 *
+	 *	@alias isDate()
+	 *	@alias validate()
+	 *
+	 *	Alternative patterns:
+	 *		'/^(\d\d\d\d)-(\d\d)-(\d\d)$/'
+	 *		'/^(\d{4})-(\d{2})-(\d{2}) [0-2][0-3]:[0-5][0-9]:[0-5][0-9]$/'
+	 *		'/^([0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[1-2][0-9]|3[0-1])$/'
+	 *
+	 *	@link http://php.net/manual/en/function.checkdate.php
+	 *
+	 *	@return bool
+	 */
+	public static function isValid($date, $pattern = '~^([1-9]\d\d\d)[- /.](0[1-9]|1[012])[- /.](0[1-9]|[12][0-9]|3[01])$~')
+	{
+		return preg_match($pattern, $date, $matches) === 1 && checkdate($matches[2], $matches[3], $matches[1]);	//	checkdate(month, day, year)
+	}
+
+	/**
+	 *	Returns true if the string contains a date in the format 'YYYY-MM-DD' AND is a valid Gregorian date
+	 *
+	 *	@alias isDate()
+	 *	@alias isValid()
+	 *
+	 *	Alternative patterns:
+	 *		'/^(\d\d\d\d)-(\d\d)-(\d\d)$/'
+	 *		'/^(\d{4})-(\d{2})-(\d{2}) [0-2][0-3]:[0-5][0-9]:[0-5][0-9]$/'
+	 *		'/^([0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[1-2][0-9]|3[0-1])$/'
+	 *
+	 *	@link http://php.net/manual/en/function.checkdate.php
+	 *
+	 *	@return bool
+	 */
+	public static function validate($date, $pattern = '~^([1-9]\d\d\d)[- /.](0[1-9]|1[012])[- /.](0[1-9]|[12][0-9]|3[01])$~')
+	{
+		return preg_match($pattern, $date, $matches) === 1 && checkdate($matches[2], $matches[3], $matches[1]);	//	checkdate(month, day, year)
 	}
 
 }
 
-DateTime::$utc = new \DateTimeZone('UTC');
+\Twister\DateTime::$dtz = new \DateTimeZone(date_default_timezone_get());
+\Twister\DateTime::$utc = new \DateTimeZone('UTC');
+\Twister\DateTime::$p1d = new \DateInterval('P1D');
