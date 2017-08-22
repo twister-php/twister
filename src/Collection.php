@@ -1,9 +1,11 @@
 <?php
 
 /**
- * Collection class with dynamic members and methods
- * Similar functionality to an Array or Dictionary class
- * Typically holding a collection/array of Entity members
+ *	Collection class with dynamic members
+ *	Similar functionality to an Array or Dictionary class
+ *	Typically holding a collection/array of Entity members
+ *	This class is not particularly useful compared to a standard array,
+ *		but it's used to create `extended` functionality of standard arrays.
  */
 
 namespace Twister;
@@ -11,20 +13,20 @@ namespace Twister;
 class Collection implements \Iterator, \Countable, \ArrayAccess
 {
 	protected $members	=	null;
-	protected $methods	=	null;
 
-	public function __construct(array $members = null, array $methods = null)
+	public function __construct(array $members = null)
 	{
 		$this->members	=&	$members;
-		$this->methods	=&	$methods;
 	}
 
 
 	/**
-	 * Get member by id/index
+	 *	Get member by id/index
 	 *
-	 * @param  string|int  $idx
-	 * @return mixed
+	 *	Note: This is not very useful, because most members will be indexed by integer.
+	 *
+	 *	@param  string|int  $idx
+	 *	@return mixed
 	 */
 	public function __get($idx)
 	{
@@ -32,11 +34,11 @@ class Collection implements \Iterator, \Countable, \ArrayAccess
 	}
 
 	/**
-	 * Set member by id/index
+	 *	Set member by id/index
 	 *
-	 * @param  string|int  $idx
-	 * @param  mixed       $value
-	 * @return void
+	 *	@param  string|int  $idx
+	 *	@param  mixed       $value
+	 *	@return void
 	 */
 	public function __set($idx, $value)
 	{
@@ -54,50 +56,12 @@ class Collection implements \Iterator, \Countable, \ArrayAccess
 	}
 
 
-	public function &all()
-	{
-		return $this->members;
-	}
-	public function get($name)						//	alias for __get()
-	{
-		return $this->members[$name];
-	}
-	public function set($name, $value)				//	alias for __set()
-	{
-		return $this->members[$name] = $value;
-	}
-	public function has($name)						//	alias for __isset()
-	{
-		return isset($this->members[$name]);
-	}
-	public function remove($name)					//	alias for __unset()
-	{
-		unset($this->members[$name]);
-	}
-
-
 	/**
 	 *	Workaround for the `array access functions` eg. array_push($obj->toArray(), $value);
 	 */
 	public function &toArray()
 	{
 		return $this->members;
-	}
-
-
-	public function __call($method, $args)
-	{
-		array_unshift($args, $this);
-		return call_user_func_array($this->methods[$method], $args);
-	}
-	public function __invoke()
-	{
-		return $this->methods['__invoke']($this);
-	}
-	public function setMethod($method, callable $callable)
-	{
-		$this->methods[$method] = $callable;
-		return $this;
 	}
 
 
