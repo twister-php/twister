@@ -7,13 +7,19 @@ class User
 	private $container		=	null;
 	public	$id				=	0;
 	private $_properties	=	null;
-	private $_db			=	null;
+	private $db				=	null;
 	private $_permissions	=	null;
+
+	public function __construct(Container &$c, array $properties = null)
+	{
+		$this->properties	=&	$properties;
+	}
+
 
 	function __construct(Container &$c, $id = 0)
 	{
 		$this->container = $c;
-		$this->_db = $c->db;
+		$this->db = $c->db;
 
 		$this->id = $id;
 
@@ -31,6 +37,11 @@ class User
 	 */
 	public function __get($key)
 	{
+		switch ($key)
+		{
+			case 'managers': return $this->_properties[$key] = new Managers::factory();
+		
+		}
 		return $this->_properties[$key];
 	}
 
@@ -46,6 +57,34 @@ class User
 		$this->_properties[$key] = $value;
 	}
 
+	public function worlds($key, $value)
+	{
+		if ( ! isset($this->_properties['worlds']))
+		{
+			$sql = 'SELECT * FROM user_worlds WHERE user_id = ' . $this->id;
+			$this->db->get_array($sql);
+		}
+		$this->_properties[$key] = $value;
+	}
+	public function getWorlds($key, $value)
+	{
+		$this->_properties[$key] = $value;
+	}
+
+	public function isManager($id)
+	{
+		return $this->getManagers()
+	}
+	public function getManagers()
+	{
+		if ( ! isset($this->_properties['managers']))
+		{
+			$sql = 'SELECT * FROM user_managers WHERE user_id = ' . $this->id;
+			$this->_properties['managers'] = $this->db->get_array($sql);
+		}
+		return $this->_properties['managers'];
+	}
+
 	function __isset($key)
 	{
 		return isset($this->_properties[$key]);
@@ -57,7 +96,7 @@ class User
 
 	private function load_permissions()
 	{
-		$this->_permissions = $this->_db->get_array(	'SELECT SQL_CACHE ' . // cached because these tables are less frequenty updated!
+		$this->_permissions = $this->db->get_array(	'SELECT SQL_CACHE ' . // cached because these tables are less frequenty updated!
 															'g.alias as g_alias,' .
 															'p.alias as p_alias,' .
 															'acl.object_id' .

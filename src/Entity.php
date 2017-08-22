@@ -9,9 +9,12 @@ namespace Twister;
 
 class Entity
 {
+	protected $container	=	null;
 	protected $properties	=	null;
 
-	public function __construct(array $properties = null)
+	public	$id				=	0;
+
+	public function __construct(Container &$c, array $properties = null)
 	{
 		$this->properties	=&	$properties;
 	}
