@@ -1,9 +1,9 @@
 <?php
 
-namespace Twister;
+namespace Twister\ORM;
 
 /**
- *	An EntityRepository serves as a repository for entities with generic as well as
+ *	A Repository serves as a repository for entities with generic as well as
  *	business specific methods for retrieving entities.
  *
  *	This class is designed for inheritance and users can subclass this class to
@@ -11,14 +11,14 @@ namespace Twister;
  *
  *	@author  Trevor Herselman <therselman@gmail.com>
  */
-class EntityRepository
+class Repository
 {
 	/**
-	 * The database connection used by the EntityManager.
+	 *	The database connection used by the EntityManager.
 	 *
-	 * @var \Doctrine\DBAL\Connection
+	 *	@var \Doctrine\DBAL\Connection
 	 */
-	protected $conn			=	null;
+	protected $em			=	null;
 
 
 	public function __construct(Container $c)
@@ -99,5 +99,33 @@ echo 'loading: ' . $repoName;
 		$this->conn->rollBack();
 	}
 
+
+    /**
+     * Adds support for magic method calls.
+     *
+     * @param string $method
+     * @param array  $args
+     *
+     * @return mixed The returned value from the resolved method.
+     *
+     * @throws ORMException
+     * @throws \BadMethodCallException If the method called is invalid
+     */
+    public function __call($method, $args)
+    {
+        if (0 === strpos($method, 'findBy')) {
+            return $this->resolveMagicCall('findBy', substr($method, 6), $args);
+        }
+        if (0 === strpos($method, 'findOneBy')) {
+            return $this->resolveMagicCall('findOneBy', substr($method, 9), $args);
+        }
+        if (0 === strpos($method, 'countBy')) {
+            return $this->resolveMagicCall('count', substr($method, 7), $args);
+        }
+        throw new \BadMethodCallException(
+            "Undefined method '$method'. The method name must start with ".
+            "either findBy, findOneBy or countBy!"
+        );
+    }
 
 }

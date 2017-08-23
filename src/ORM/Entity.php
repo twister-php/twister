@@ -5,7 +5,7 @@
  * Properties can include callable functions, which can `lazy load` properties, or return dynamic/complex/calculated properties
  */
 
-namespace Twister;
+namespace Twister\ORM;
 
 class Entity
 {

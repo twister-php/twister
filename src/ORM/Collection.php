@@ -5,10 +5,10 @@
  *	Similar functionality to an Array or Dictionary class
  *	Typically holding a collection/array of Entity members
  *	This class is not particularly useful compared to a standard array,
- *		but it's used to create `extended` functionality of standard arrays.
+ *		but it's used to `extend` the functionality of standard arrays.
  */
 
-namespace Twister;
+namespace Twister\ORM;
 
 class Collection implements \Iterator, \Countable, \ArrayAccess
 {
