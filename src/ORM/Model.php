@@ -9,9 +9,9 @@ namespace Twister\ORM;
  *	This class is designed for inheritance and users can subclass this class to
  *	write their own repositories with business-specific methods to locate entities.
  *
- *	@author	Trevor Herselman <therselman@gmail.com>
+ *	@author  Trevor Herselman <therselman@gmail.com>
  */
-class ActiveRecord
+class Model
 {
 	/**
 	 *	The database connection used by the EntityManager.

@@ -12,7 +12,7 @@
  *	@author	Trevor Herselman <therselman@gmail.com>
  */
 
-namespace Twister\ORM;
+namespace Twister;
 
 class Collection implements \Iterator, \Countable, \ArrayAccess
 {
