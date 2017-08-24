@@ -39,21 +39,6 @@ class Repository
 	/**
 	 *	{@inheritDoc}
 	 */
-	public function getRepository($entityName)
-	{
-		static $repos = null;
-		if ( ! isset($repos[$entityName])) {
-			$repoName = $entityName . 'Repository';
-echo 'loading: ' . $repoName;
-			$repos[$entityName] = new $repoName($this);
-		}
-		return $repos[$entityName];
-	}
-
-
-	/**
-	 *	{@inheritDoc}
-	 */
 	public function beginTransaction()
 	{
 		$this->conn->beginTransaction();
