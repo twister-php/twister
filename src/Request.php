@@ -323,7 +323,7 @@ class Request
 						'twister\request'	=>	&$this
 					];
 */
-		$byType	=	$this->requestRouteParams;
+		$byType	=	$this->container->requestRouteParams;
 		$args	=	[];
 		foreach ($params as $param)
 		{
