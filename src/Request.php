@@ -316,11 +316,14 @@ class Request
 	//
 	private function _get_args_from_params(array $params)
 	{
+/*
 		$byType	=	[	'twister\container'	=>	&$this->container,
 						'twister\db'		=>	&$this->db,
-						'twister\user'		=>	&$this->container->user,
+					//	'twister\user'		=>	&$this->container->user,
 						'twister\request'	=>	&$this
 					];
+*/
+		$byType	=	$this->requestRouteParams;
 		$args	=	[];
 		foreach ($params as $param)
 		{
@@ -616,7 +619,7 @@ class Request
 
 			if (is_array($location))
 			{
-				throw new \Exception('Request section not implemented/RE-written yet!');
+				throw new \Exception('Request section not implemented or re-written yet!');
 
 				if (isset($location['scheme']) && ! isset($location['host']))
 					$location['host'] = _::request('host');

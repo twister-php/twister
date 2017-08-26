@@ -43,6 +43,7 @@ class Container implements ArrayAccess
 	{
 		if (static::$instance)
 			throw new \Exception('Cannot create another Container instance!');
+
 		static::$instance = $this;
 
 		$this->bindings = $c;
