@@ -21,9 +21,6 @@ abstract class Entity
 	 */
 	function __get($name)
 	{
-		if ( ! isset($this->properties[$name]))
-			$this->load($name);
-
 		return $this->properties[$name];
 	}
 
@@ -47,6 +44,4 @@ abstract class Entity
 	{
 		unset($this->properties[$name]);
 	}
-
-	abstract function load(...$args);
 }
