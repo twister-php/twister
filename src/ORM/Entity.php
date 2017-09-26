@@ -2,15 +2,24 @@
 
 namespace Twister\ORM;
 
-abstract class Entity
+/**
+ *	Similar Examples
+ *	----------------
+ *	@link	https://github.com/analogueorm/analogue/blob/5.5/src/Entity.php
+ *
+ *	Interfaces
+ *	----------
+ *	@link	http://php.net/JsonSerializable
+ */
+abstract class Entity implements \JsonSerializable
 {
 	protected	$properties;
-	public		$id;
+
+	protected	$map;	//	AKA config; can include relations, factory methods for relations etc.
 
 	function __construct(array $properties = null)
 	{
 		$this->properties	=&	$properties;
-		$this->id			=	$properties['id'] ?? null;
 	}
 
 	/**
@@ -21,8 +30,18 @@ abstract class Entity
 	 */
 	function __get($name)
 	{
+		if ( ! isset($this->properties[$name]))
+		{
+			if (isset($this->map[$name]))
+			{
+				
+			}
+		}
 		return $this->properties[$name];
 	}
+
+//	abstract private relation($name);
+//	abstract private __get__();
 
 	/**
 	 * Set entity field/property
@@ -43,5 +62,10 @@ abstract class Entity
 	function __unset($name)
 	{
 		unset($this->properties[$name]);
+	}
+
+	function jsonSerialize()
+	{
+		return $this->properties;
 	}
 }

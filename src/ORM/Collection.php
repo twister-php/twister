@@ -4,17 +4,22 @@
  *	Collection class with dynamic members
  *	Similar functionality to an Array or Dictionary class
  *	Typically holding a collection/array of Entity members
- *	This class is not particularly useful compared to a standard array,
- *		but it's used to `extend` the functionality of standard arrays.
+ *
  *
  *	@link	https://laravel.com/docs/5.4/eloquent-collections#available-methods
  *
+ *	@link	http://php.net/manual/en/class.iterator.php
+ *	@link	http://php.net/manual/en/class.arrayaccess.php
+ *	@link	http://php.net/manual/en/class.countable.php
+ *	@link	http://php.net/manual/en/class.iteratoraggregate.php
+ *	@link	http://php.net/manual/en/class.jsonserializable.php
+ *
+ *
  *	@author	Trevor Herselman <therselman@gmail.com>
  */
-
 namespace Twister\ORM;
 
-class Collection implements \Iterator, \Countable, \ArrayAccess, \IteratorAggregate //, JsonSerializable	http://php.net/JsonSerializable
+class Collection implements \Iterator, \ArrayAccess, \Countable, \IteratorAggregate, \JsonSerializable
 {
 	protected $members	=	null;
 
@@ -25,7 +30,7 @@ class Collection implements \Iterator, \Countable, \ArrayAccess, \IteratorAggreg
 
 
 	/**
-	 *	Countable interface
+	 *
 	 */
 	public function find(...$params)
 	{
@@ -315,54 +320,6 @@ class Collection implements \Iterator, \Countable, \ArrayAccess, \IteratorAggreg
 	}
 
 
-	/**
-	 *	Get an iterator for the members.
-	 *
-	 *	@return \ArrayIterator
-	 */
-	public function getIterator()
-	{
-		return new ArrayIterator($this->members);
-	}
-
-
-	/**
-	 *	Get member by id/index
-	 *
-	 *	Note: This is not very useful, because most members will be indexed by integer.
-	 *
-	 *	@param  string|int  $idx
-	 *	@return mixed
-	 */
-	public function __get($idx)
-	{
-		return $this->members[$idx];
-	}
-
-
-	/**
-	 *	Set member by id/index
-	 *
-	 *	@param  string|int  $idx
-	 *	@param  mixed       $value
-	 *	@return void
-	 */
-	public function __set($idx, $value)
-	{
-		$this->members[$idx] = $value;
-	}
-
-
-	function __isset($idx)
-	{
-		return isset($this->members[$idx]);
-	}
-	function __unset($idx)
-	{
-		unset($this->members[$idx]);
-	}
-
-
     /**
      *	Get the collection of items as a plain array.
      *
@@ -391,11 +348,11 @@ class Collection implements \Iterator, \Countable, \ArrayAccess, \IteratorAggreg
 
 
 	/**
-	 *	
+	 *	JsonSerializable interface
 	 */
-	public function toJson()
+	public function jsonSerialize()
 	{
-		return json_encode($this->members);
+		return $this->members;
 	}
 
 
@@ -403,6 +360,21 @@ class Collection implements \Iterator, \Countable, \ArrayAccess, \IteratorAggreg
     {
         return json_encode($this->members);
     }
+
+
+	/**
+	 *	Get an external iterator to the members.
+	 *
+	 *	IteratorAggregate interface
+	 *
+	 *	@link	http://php.net/manual/en/class.iteratoraggregate.php
+	 *
+	 *	@return \ArrayIterator
+	 */
+	public function getIterator()
+	{
+		return new ArrayIterator($this->members);
+	}
 
 
 	/**

@@ -5,7 +5,6 @@ namespace Twister;
 class Request
 {
 	private $container	=	null;
-	private $db			=	null;
 
 	public $remote_addr	=	null;
 	public $inet_pton	=	null;
@@ -21,13 +20,7 @@ class Request
 	public $isIpv4		=	null;
 	public $is_ipv4		=	null;
 
-	public $cc			=	null;
-
 	public $uri			=	null;
-
-	public $agent_id			=	null;
-	public $forwarded_for_id	=	null;
-	public $via_id				=	null;
 
 	public $route		=	null;
 	public $routes		=	null;
@@ -39,17 +32,12 @@ class Request
 		$this->db			=	$container->db;
 
 		$this->_normalize_ip_address();
-		$this->_detect_banned_ips();
 
 		$this->method		=	strtoupper($_SERVER['REQUEST_METHOD']);
 
 		$this->uri			=	Uri::fromGlobals();
 
 		$this->isHttps		=	$this->is_https		=	$this->isSecure		=	$this->uri->isHttps();
-
-		$this->cc			=	$this->_get_cc();
-
-		$this->_get_agent_ex();
 	}
 
 	private function _normalize_ip_address()
@@ -63,41 +51,6 @@ class Request
 		$this->ipv4			=	ip2long($this->remote_addr);
 
 		$this->isIpv4		=	$this->is_ipv4		=	$this->ipv4 !== false;
-	}
-
-	private function _detect_banned_ips()
-	{
-		$db = $this->db;
-		if ($db->lookup('SELECT SQL_CACHE 1 FROM bot_bans WHERE ip = 0x' . $this->ip2hex))
-		{
-			$db->real_query('UPDATE bot_ban_requests SET requests = requests + 1 WHERE ip = 0x' . $this->ip2hex);
-			$db->close();
-			sleep(3);
-			header('HTTP/1.0 403 Forbidden');
-			exit;
-		}
-	}
-
-	private function _get_cc()
-	{
-		return $this->db->lookup(	$this->is_ipv4 ?
-								('SELECT SQL_CACHE cc FROM geoip2_ipv4 WHERE ' . $this->ipv4 . ' BETWEEN range_from AND range_until') :
-							//	'SELECT SQL_CACHE cc FROM geoip2_ipv6 WHERE CONV(HEX(LEFT(0x' . self::$ip2hex . ', 8)), 16, 10) BETWEEN range_high_from AND range_high_until AND CONV(HEX(RIGHT(0x' . self::$ip2hex . ', 8)), 16, 10) BETWEEN range_low_from AND range_low_until LIMIT 1'
-								('SELECT SQL_CACHE cc FROM geoip2_ipv6 WHERE 0x' . substr($this->ip2hex, 0, 16) . ' BETWEEN range_high_from AND range_high_until AND 0x' . substr($this->ip2hex, 16) . ' BETWEEN range_low_from AND range_low_until LIMIT 1')
-							);
-	}
-
-	private function _get_agent_ex()	//	`agent` is just a generic term for `agent`, `forwarded for` and `via`
-	{
-		$db = $this->db;
-		$agent	= isset($_SERVER['HTTP_USER_AGENT'])	?	db::varchar($_SERVER['HTTP_USER_AGENT'], 700) : null;
-		$ff		= db::varchar(self::_normalize_forwarded_for(), 128);
-		$via	= isset($_SERVER['HTTP_VIA'])			?	db::varchar($_SERVER['HTTP_VIA'], 224) : null;
-		$db->real_query('LOCK TABLES request_agents WRITE, request_forwarded_for WRITE, request_via WRITE');
-			$this->agent_id			=	empty($agent)	? 0 : $this->_get_agent_ex_id($db, $agent,	'request_agents', 'agent');
-			$this->forwarded_for_id	=	empty($ff)		? 0 : $this->_get_agent_ex_id($db, $ff,		'request_forwarded_for', 'forwarded_for');
-			$this->via_id			=	empty($via)		? 0 : $this->_get_agent_ex_id($db, $via,	'request_via', 'via');
-		$db->real_query('UNLOCK TABLES');
 	}
 
 	//	Combine all the possible values for 'HTTP_X_FORWARDED_FOR' together
@@ -120,27 +73,7 @@ class Request
 		return preg_replace('/[, ]+/', ',', implode(',', $result));
 	}
 
-	private function _get_agent_ex_id($db, $value, $table, $field)
-	{
-		$md5 = md5($value);
-		$id = $db->lookup('SELECT id FROM ' . $table . ' WHERE hash = 0x' . $md5);
-		if ( ! $id)
-		{
-			$id = $db->call('CALL spGetRandomID("id", "' . $table . '", 1, 0x7FFFFFFF)');
-			//	TEMPORARY HACK, while we examine the various 'forwarded_for' values!
-			//	I want to know which of the various `forwarded_for` combinations are used on the internet!
-			//	So these are just `bitmasks` of various possible fields! Once we establish which ones are used, we can remove the bit fields and the $_SERVER[] array member in normalize_forwarded_for()
-			if ($field == 'forwarded_for')
-				// REMOVE THIS SECTION when our 'testing' is complete! We should determine what 'forwarded_for' server variables are used, and reduce it!
-				$db->real_query('INSERT IGNORE INTO request_forwarded_for (id, hash, forwarded_for, client_ip, x_forwarded_for, x_forwarded, x_cluster_client_ip, forwarded_for2, forwarded) VALUES (' . $id . ', 0x' . $md5 . ', ' . $db->escape($value) . ', ' . (int) empty($_SERVER['HTTP_CLIENT_IP']) . ', ' . (int) empty($_SERVER['HTTP_X_FORWARDED_FOR']) . ', ' . (int) empty($_SERVER['HTTP_X_FORWARDED']) . ', ' . (int) empty($_SERVER['HTTP_X_CLUSTER_CLIENT_IP']) . ', ' . (int) empty($_SERVER['HTTP_FORWARDED_FOR']) . ', ' . (int) empty($_SERVER['HTTP_FORWARDED']) . ')');
-			else
-				//	Leave only this statement after we've tested the various 'forwarded_for' combinations!
-				$db->real_query('INSERT IGNORE INTO ' . $table . ' (id, hash, ' . $field . ') VALUES (' . $id . ', 0x' . $md5 . ', ' . $db->escape($value) . ')');
-		}
-		return $id;
-	}
-
-	public function execute_route(array $routes)
+	public function execute_route(array $routes)	//	AKA dispach / dispatchRoute
 	{
 		$path			=	$this->uri->path;
 		$paths			=	explode('/', $path, 4);
@@ -163,7 +96,7 @@ class Request
 				{
 					if ( ! isset($route[0]) || strpos($route[0], $method) !== false)
 					{
-						$regexp = '~^' . (strpos($route[1], '/') === 0 ? null : '/' . $paths[1] . '/') . $this->_convert_route_pattern($route[1]) . '$~';
+						$regexp = '~^' . (strpos($route[1], '/') === 0 ? null : '/' . $paths[1] . '/') . $this->expandRoutePattern($route[1]) . '$~';
 						if (preg_match($regexp, $path, $this->params) === 1)
 						{
 							$this->route['regexp']	= $regexp;			//	store the `winning` regexp
@@ -177,7 +110,13 @@ class Request
 			}
 			else if (is_null($arr[0]) || strpos($arr[0], $method) !== false)
 			{
-				$regexp = '~^' . (empty($arr[1]) ? '/' . $paths[1] : ((strpos($arr[1], '/') === 0 ? null : '/' . $paths[1] . '/') . $this->_convert_route_pattern($arr[1]))) . '$~';	//	by default if we leave the route/command null, we use /login instead of /login/ like `/admin/...` basically this works differently to the array (sub-folder) version for arrays, where we append /name/ but here we only do /name
+//dump($arr);
+///dump($method);
+//dump($paths);
+//dump($this->expandRoutePattern($arr[1]));
+//die();
+				$regexp = '~^' . (empty($arr[1]) ? '/' . $paths[1] : ((strpos($arr[1], '/') === 0 ? null : '/' . $paths[1] . '/')
+						. $this->expandRoutePattern($arr[1]))) . '$~';	//	by default if we leave the route/command null, we use /login instead of /login/ like `/admin/...` basically this works differently to the array (sub-folder) version for arrays, where we append /name/ but here we only do /name
 				if (preg_match($regexp, $path, $this->params) === 1)
 				{
 					$this->route['regexp']	= $regexp;
@@ -197,18 +136,26 @@ class Request
 		{
 			if (($pos = strpos($controller, '::')) !== false)		//	controller is a static class method
 			{
-				$class = substr($controller, 0, $pos);
-				$method = substr($controller, $pos + 2);
+			//	$class = substr($controller, 0, $pos);
+			//	$method = substr($controller, $pos + 2);
 			//	require __DIR__ . '/../controllers/' . $class . '.php';
-				$reflection = new \ReflectionMethod($class, $method);
+				/**
+				 *	NOTE: If you get a `ReflectionException` here; with `Class MyClass does not exist`
+				 *		Then check the previous exception message for compile time PHP errors loading the class file!
+				 */
+				try {
+					$reflection = new \ReflectionMethod(substr($controller, 0, $pos), substr($controller, $pos + 2));
+				} catch (\ReflectionException $e) {
+					throw $e->getPrevious();
+				}
 				return $reflection->invokeArgs(null, $this->_get_args_from_params($reflection->getParameters()));
 			}
 			else if (($pos = strpos($controller, '->')) !== false)	//	controller is an instantiatable object, usually an object extending the base Controller class
 			{
-				$class = substr($controller, 0, $pos);
-				$method = substr($controller, $pos + 2);
+			//	$class = substr($controller, 0, $pos);
+			//	$method = substr($controller, $pos + 2);
 			//	require __DIR__ . '/../controllers/' . $class . '.php';
-				$reflection = new \ReflectionMethod($class, $method);
+				$reflection = new \ReflectionMethod(substr($controller, 0, $pos), substr($controller, $pos + 2));
 				$obj = new $class($this->container);
 				return $reflection->invokeArgs($obj, $this->_get_args_from_params($reflection->getParameters()));
 			}
@@ -259,9 +206,9 @@ class Request
 	//	This function expands routes like '/admin/article/{id}' ==> '/admin/article/(?<id>[0-9]+)'
 	//	It also converts TRAILING `optional` paths to the preg equivalent: '/club/{id}[/history]' ==> '/club/(?<id>[0-9]+)(?:/history)?'
 	//
-	private function _convert_route_pattern($route)
+	public function expandRoutePattern($route)
 	{
-		if (strrpos($route, ']', -1) !== false)	//	check if the route ends with optional parameters (where last character in route is `]`)
+		if (strpos($route, ']', -1) !== false)	//	check if the route ends with optional parameters (where last character in route is `]`)
 		{
 			//	Check matching number of opening & closing brackets ... disabled only for performance reasons, the preg_match() will also throw an exception!?!? wtf?
 			//if (substr_count($route, '[') !== substr_count($route, ']'))
@@ -301,38 +248,21 @@ class Request
 					);
 	}
 
-	//	Dynamic route controller::handler argument builder
-	//
-	//	Need to somehow re-work this ...
-	//
-	//	I don't like the fact that the `$bytype` array is actually initializing the `db` and `user`!
-	//	Should probably somehow use a `switch` statement for the `$bytype`
-	//
-	//	NOTE: I cannot really make this process dynamic by searching the `container` array.
-	//		So I can't do something like this: `if ($param->type === $container->type)` ...
-	//		because for example; the `db` value is actually a closure because it's an `inline factory`
-	//		It's not a `Twister\Db` ... yet! So I can't compare it to a `function (Db $db)` value!
-	//		`Twister\Db !== Closure`
-	//
+	/**
+	 *	Dynamic route controller::handler argument builder
+	 */
 	private function _get_args_from_params(array $params)
 	{
-/*
-		$byType	=	[	'twister\container'	=>	&$this->container,
-						'twister\db'		=>	&$this->db,
-					//	'twister\user'		=>	&$this->container->user,
-						'twister\request'	=>	&$this
-					];
-*/
 		$byType	=	$this->container->requestRouteParams;
 		$args	=	[];
 		foreach ($params as $param)
 		{
 			if ($param->hasType() && isset($byType[$type = strtolower($param->getType())]))
 				$args[] = $byType[$type];
-			else if (isset($_GET[$param->name]))
-				$args[] = $_GET[$param->name];
 			else if (isset($this->params[$param->name]))
 				$args[] = $this->params[$param->name];
+			else if (isset($_GET[$param->name]))
+				$args[] = $_GET[$param->name];
 			else if (isset($_POST[$param->name]))
 				$args[] = $_POST[$param->name];
 			else
@@ -401,8 +331,6 @@ class Request
 	{
 		return $this->method === 'OPTIONS';
 	}
-
-
 
 
 	//	eg. request::build_url(array('scheme' => null))			==	//host/path

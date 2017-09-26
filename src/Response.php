@@ -90,7 +90,7 @@ class Response
 		if (isset($_SESSION))
 			session_write_close();
 
-		$this->container->db->close();
+	//	$this->container->db->close();
 	}
 
 	/**

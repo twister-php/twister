@@ -43,7 +43,7 @@ class Date implements ArrayAccess, IteratorAggregate
 	 *
 	 *	@param \DateTime|string|null     $date
 	 */
-	public function __construct($date)
+	public function __construct($date = 'now')
 	{
 		if (is_string($date))
 		{
@@ -56,6 +56,10 @@ class Date implements ArrayAccess, IteratorAggregate
 		else if (is_object($date))
 		{
 			$this->date = new \DateTime((string) $date, self::$utc);
+		}
+		else if ($date === null)
+		{
+			$this->date = new \DateTime('now', self::$utc);
 		}
 		else if (is_array($date))
 		{
@@ -111,6 +115,33 @@ class Date implements ArrayAccess, IteratorAggregate
 	public function getDate()
 	{
 		return $this->date;
+	}
+
+
+	/**
+	 *	Returns the difference between two dates in days
+	 */
+	public function days($date = null)
+	{
+		return is_string($date) ? (new \DateTime($date, self::$utc))->diff($this->date)->days : $date->diff($this->date)->days;
+	}
+
+
+	/**
+	 *	Returns the difference between two dates
+	 *
+	 *	@link	http://php.net/manual/en/datetime.diff.php
+	 *
+	 */
+	public function diff($date = 'now')
+	{
+		if ($date instanceof static)
+			return $this->date->diff($date->date);
+		else if ($date instanceof \DateTime)
+			return $this->date->diff($date);
+		else if (is_string($date))
+			return $this->date->diff(new \DateTime($date, self::$utc));
+	//	return is_string($date) ? (new \DateTime($date, self::$utc))->diff($this->date)->days : $date->diff($this->date)->days;
 	}
 
 
@@ -725,16 +756,33 @@ class Date implements ArrayAccess, IteratorAggregate
 			case 'yearweek':		break;									//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_yearweek			MySQL: Returns year and week for a date. The year in the result may be different from the year in the date argument for the first and the last week of the year.
 			case 'date':			return $this->date->format('Y-m-d');	//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_date				MySQL: Extracts the date part of the date or datetime expression expr.
 
-				throw new \InvalidArgumentException('TODO: Property offsetGet["' . $name . '"] not implemented yet');
+			case 'yesterday':		return (clone $this)->modify('-1 day');
+			case 'tomorrow':		return (clone $this)->modify('+1 day');
+			case 'prevday':			return (clone $this)->modify('-1 day');
+			case 'nextday':			return (clone $this)->modify('+1 day');
+			case 'prev_day':		return (clone $this)->modify('-1 day');
+			case 'next_day':		return (clone $this)->modify('+1 day');
+			case 'prevweek':		return (clone $this)->modify('-7 days');
+			case 'nextweek':		return (clone $this)->modify('+7 days');
+			case 'prev_week':		return (clone $this)->modify('-7 days');
+			case 'next_week':		return (clone $this)->modify('+7 days');
+			case 'prevmonth':		return (clone $this)->modify('-1 month');
+			case 'nextmonth':		return (clone $this)->modify('+1 month');
+			case 'prev_month':		return (clone $this)->modify('-1 month');
+			case 'next_month':		return (clone $this)->modify('+1 month');
+			case 'prevyear':		return (clone $this)->modify('-1 year');
+			case 'nextyear':		return (clone $this)->modify('+1 year');
+			case 'prev_year':		return (clone $this)->modify('-1 year');
+			case 'next_year':		return (clone $this)->modify('+1 year');
 
 			//	strtolower($name) versions
-			case 'year':		return $this->date->format('Y');
-			case 'month':		return $this->date->format('m');
-			case 'day':			return $this->date->format('d');
+			case 'year':			return $this->date->format('Y');
+			case 'month':			return $this->date->format('m');
+			case 'day':				return $this->date->format('d');
 
-			case 'hour':		return $this->date->format('G');			//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_hour				MySQL: Returns the hour for time. The range of the return value is 0 to 23 for time-of-day values. However, the range of TIME values actually is much larger, so HOUR can return values greater than 23.
-			case 'minute':		return $this->date->format('i');			//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_minute			MySQL: Returns the minute for time, in the range 0 to 59.
-			case 'second':		return $this->date->format('s');			//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_hour				MySQL: Returns the second for time, in the range 0 to 59.
+			case 'hour':			return $this->date->format('G');			//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_hour				MySQL: Returns the hour for time. The range of the return value is 0 to 23 for time-of-day values. However, the range of TIME values actually is much larger, so HOUR can return values greater than 23.
+			case 'minute':			return $this->date->format('i');			//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_minute			MySQL: Returns the minute for time, in the range 0 to 59.
+			case 'second':			return $this->date->format('s');			//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_hour				MySQL: Returns the second for time, in the range 0 to 59.
 		}
 
 		throw new \InvalidArgumentException('Property offsetGet["' . $name . '"] does not exist!');
@@ -925,9 +973,27 @@ class Date implements ArrayAccess, IteratorAggregate
 			case 'yearweek':		break;									//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_yearweek			MySQL: Returns year and week for a date. The year in the result may be different from the year in the date argument for the first and the last week of the year.
 			case 'date':			return $this->date->format('Y-m-d');	//	https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_date				MySQL: Extracts the date part of the date or datetime expression expr.
 
-			case 'age':				return $this->date->format('Y-m-d');
+			case 'age':				return (new \DateTime('now', self::$utc))->diff($this->date)->y;
+			case 'days':			return (new \DateTime('now', self::$utc))->diff($this->date)->days;
 
-				throw new \InvalidArgumentException('TODO: Property ->' . $name . ' not implemented yet');
+			case 'yesterday':		return (clone $this)->modify('-1 day');
+			case 'tomorrow':		return (clone $this)->modify('+1 day');
+			case 'prevday':			return (clone $this)->modify('-1 day');
+			case 'nextday':			return (clone $this)->modify('+1 day');
+			case 'prev_day':		return (clone $this)->modify('-1 day');
+			case 'next_day':		return (clone $this)->modify('+1 day');
+			case 'prevweek':		return (clone $this)->modify('-7 days');
+			case 'nextweek':		return (clone $this)->modify('+7 days');
+			case 'prev_week':		return (clone $this)->modify('-7 days');
+			case 'next_week':		return (clone $this)->modify('+7 days');
+			case 'prevmonth':		return (clone $this)->modify('-1 month');
+			case 'nextmonth':		return (clone $this)->modify('+1 month');
+			case 'prev_month':		return (clone $this)->modify('-1 month');
+			case 'next_month':		return (clone $this)->modify('+1 month');
+			case 'prevyear':		return (clone $this)->modify('-1 year');
+			case 'nextyear':		return (clone $this)->modify('+1 year');
+			case 'prev_year':		return (clone $this)->modify('-1 year');
+			case 'next_year':		return (clone $this)->modify('+1 year');
 
 			//	strtolower($name) versions
 			case 'year':			return $this->date->format('Y');
@@ -956,9 +1022,6 @@ class Date implements ArrayAccess, IteratorAggregate
 			case 'timestamp':
 				$this->date->setTimestamp($value);
 				break;
-
-			case 'day':
-			case 'day':
 		}
 
 		throw new \InvalidArgumentException('Property ->' . $name . ' cannot be set!');

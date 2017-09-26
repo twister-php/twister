@@ -9,9 +9,18 @@ namespace Twister\ORM;
  *	This class is designed for inheritance and users can subclass this class to
  *	write their own repositories with business-specific methods to locate entities.
  *
+ *
+ *	Similar Examples
+ *	----------------
+ *	@link	https://github.com/analogueorm/analogue/blob/5.5/src/Repository.php
+ *
+ *	Interfaces
+ *	----------
+ *	@link	http://php.net/JsonSerializable
+ *
  *	@author  Trevor Herselman <therselman@gmail.com>
  */
-class Repository
+abstract class Repository
 {
 	/**
 	 *	The database connection used by the EntityManager.
@@ -19,6 +28,8 @@ class Repository
 	 *	@var \Doctrine\DBAL\Connection
 	 */
 	protected $em			=	null;
+
+	protected $mapper		=	null;
 
 
 	public function __construct(Container $c)
