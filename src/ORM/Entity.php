@@ -15,8 +15,6 @@ abstract class Entity implements \JsonSerializable
 {
 	protected	$properties;
 
-	protected	$map;	//	AKA config; can include relations, factory methods for relations etc.
-
 	function __construct(array $properties = null)
 	{
 		$this->properties	=&	$properties;
@@ -30,12 +28,8 @@ abstract class Entity implements \JsonSerializable
 	 */
 	function __get($name)
 	{
-		if ( ! isset($this->properties[$name]))
-		{
-			if (isset($this->map[$name]))
-			{
-				
-			}
+		if ( ! isset($this->properties[$name])) {
+			$this->load($name);
 		}
 		return $this->properties[$name];
 	}
@@ -68,4 +62,6 @@ abstract class Entity implements \JsonSerializable
 	{
 		return $this->properties;
 	}
+
+	abstract function load(...$args);
 }

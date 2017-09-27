@@ -2,7 +2,7 @@
 
 namespace Twister\ORM;
 
-abstract class SimpleMap
+abstract class SimpleMap extends EntityMap
 {
 	function __construct()
 	{

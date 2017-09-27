@@ -17,16 +17,14 @@ namespace Twister\ORM;
  */
 abstract class Mapper
 {
-	protected	$fields;
-	protected	$from;
-	protected	$joins;	//	optional
-	protected	$properties;
-	protected	$aliases;
-	protected	$relationships;
+	const ONE_TO_MANY = 0;
+	const ONE_TO_ONE = 1;
+	const MANY_TO_MANY = 2;
+	const EMBEDED = 3;
 
-	function __construct(array $properties = null)
+	function __construct()
 	{
-		$this->properties	=&	$properties;
+		
 	}
 
 	abstract function select();
